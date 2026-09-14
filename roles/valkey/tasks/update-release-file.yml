@@ -1,0 +1,20 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+- name: Determine valkey version
+  ansible.builtin.shell:
+    cmd: 'set -o pipefail && valkey-server --version | cut -d" " -f3 | cut -d"=" -f2'
+  register: result
+  check_mode: false
+  changed_when: false
+  failed_when: result.rc != 0
+  environment:
+    PATH: "{{ ansible_env.PATH }}:{{ valkey_bin_dir }}"
+
+- name: Write valkey release information
+  ansible.builtin.lineinfile:
+    path: "{{ common_itential_release_file }}"
+    regexp: "^VALKEY="
+    line: "VALKEY={{ result.stdout }}"
+    create: true
+    mode: "0644"

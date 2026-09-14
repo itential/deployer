@@ -1,0 +1,68 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+- name: Create Valkey PKI base directory
+  ansible.builtin.file:
+    path: "{{ valkey_pki_base_dir }}"
+    state: directory
+    owner: "{{ valkey_pki_owner }}"
+    group: "{{ valkey_pki_group }}"
+    mode: "0750"
+  tags:
+    - valkey
+    - valkey_certificates
+    - certificates
+
+- name: Create Valkey private directory
+  ansible.builtin.file:
+    path: "{{ valkey_pki_private_dir }}"
+    state: directory
+    owner: "{{ valkey_pki_owner }}"
+    group: "{{ valkey_pki_group }}"
+    mode: "0700"
+  tags:
+    - valkey
+    - valkey_certificates
+    - certificates
+
+- name: Copy Sentinel TLS certificate
+  ansible.builtin.copy:
+    src: "{{ valkey_sentinel_tls_cert_src }}"
+    dest: "{{ valkey_sentinel_tls_cert_dest }}"
+    owner: "{{ valkey_pki_owner }}"
+    group: "{{ valkey_pki_group }}"
+    mode: "0644"
+  when: valkey_sentinel_tls_cert_src | length > 0
+  notify: Enable and Start Valkey Sentinel
+  tags:
+    - valkey
+    - valkey_certificates
+    - certificates
+
+- name: Copy Sentinel TLS private key
+  ansible.builtin.copy:
+    src: "{{ valkey_sentinel_tls_key_src }}"
+    dest: "{{ valkey_sentinel_tls_key_dest }}"
+    owner: "{{ valkey_pki_owner }}"
+    group: "{{ valkey_pki_group }}"
+    mode: "0600"
+  when: valkey_sentinel_tls_key_src | length > 0
+  notify: Enable and Start Valkey Sentinel
+  tags:
+    - valkey
+    - valkey_certificates
+    - certificates
+
+- name: Copy CA bundle for Sentinel
+  ansible.builtin.copy:
+    src: "{{ valkey_tls_ca_src }}"
+    dest: "{{ valkey_tls_ca_dest }}"
+    owner: "{{ valkey_pki_owner }}"
+    group: "{{ valkey_pki_group }}"
+    mode: "0644"
+  when: valkey_tls_ca_src | length > 0
+  notify: Enable and Start Valkey Sentinel
+  tags:
+    - valkey
+    - valkey_certificates
+    - certificates

@@ -1,0 +1,12 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+- name: Validate distribution major version
+  ansible.builtin.assert:
+    that: ansible_distribution_major_version != "7"
+    msg: Download not supported for EL 7
+
+- name: Validate offline_install_enabled variable
+  ansible.builtin.assert:
+    that: offline_install_enabled is not defined or not offline_install_enabled | bool
+    msg: offline_install_enabled must be set to false for download

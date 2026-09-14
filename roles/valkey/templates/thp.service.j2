@@ -1,0 +1,12 @@
+[Unit]
+Description={{ description }}
+DefaultDependencies=no
+After=sysinit.target local-fs.target
+Before=valkey.service
+
+[Service]
+Type=oneshot
+ExecStart={{ command }}
+
+[Install]
+WantedBy=basic.target

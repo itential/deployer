@@ -1,0 +1,27 @@
+# Copyright (c) 2026, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+
+# run this only for valkey_master and valkey_replica device group
+- name: Run Valkey Verification Tasks
+  hosts: valkey_master:valkey_replica
+  gather_facts: true
+  become: true
+  tasks:
+    - name: Verify Valkey Installation  # noqa run-once
+      ansible.builtin.import_role:
+        name: itential.deployer.valkey
+        tasks_from: verify-valkey
+      tags: verify_valkey
+
+# run this only for valkey_sentinel device group
+- name: Run Sentinel Verification Tasks
+  hosts: valkey_sentinel
+  gather_facts: true
+  become: true
+  tasks:
+    - name: Verify Sentinel Installation  # noqa run-once
+      ansible.builtin.import_role:
+        name: itential.deployer.valkey
+        tasks_from: verify-sentinel
+      tags: verify_sentinel

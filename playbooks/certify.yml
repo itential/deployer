@@ -5,6 +5,9 @@
 - name: Certify Redis Installation
   import_playbook: itential.deployer.certify_redis
 
+- name: Certify Valkey Installation
+  import_playbook: itential.deployer.certify_valkey
+
 - name: Certify MongoDB Installation
   import_playbook: itential.deployer.certify_mongodb
 

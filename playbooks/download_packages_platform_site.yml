@@ -4,6 +4,9 @@
 - name: Download Redis packages
   import_playbook: itential.deployer.download_packages_redis
 
+- name: Download Valkey packages
+  import_playbook: itential.deployer.download_packages_valkey
+
 - name: Download MongoDB packages
   import_playbook: itential.deployer.download_packages_mongodb
 

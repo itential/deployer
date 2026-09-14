@@ -1,0 +1,96 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+# Transparent Huge Pages (THP) is a Linux memory management system that reduces the overhead
+# of Translation Lookaside Buffer (TLB) lookups on machines with large amounts of memory by
+# using larger memory pages.
+#
+# However, database workloads often perform poorly with THP enabled, because they tend to
+# have sparse rather than contiguous memory access patterns. When running Valkey on Linux,
+# THP should be disabled for best performance. Valkey will also log a warning at startup
+# if THP is enabled.
+#
+# To ensure that THP is disabled before valkey starts, you should create a service file for
+# your platform's initialization system that disables THP at boot.
+#
+# Additionally, for RHEL / CentOS systems that make use of ktune and tuned performance
+# profiles, you must create a custom tuned profile as well.
+
+# Check if its already disabled
+- name: Ensure THP is enabled never
+  ansible.builtin.lineinfile:
+    name: /sys/kernel/mm/transparent_hugepage/enabled
+    line: "always madvise [never]"
+    state: present
+  check_mode: true
+  register: thp_enable_conf
+
+- name: Ensure THP is defrag never
+  ansible.builtin.lineinfile:
+    name: /sys/kernel/mm/transparent_hugepage/defrag
+    line: "always defer defer+madvise madvise [never]"
+    state: present
+  check_mode: true
+  register: thp_defrag_conf
+
+# Disable Transparent Huge Pages (THP) if it has not been already
+- name: Disable Transparent Huge Pages (THP)
+  when:
+    - thp_enable_conf.changed
+    - thp_defrag_conf.changed
+  block:
+    - name: Create systemd unit file
+      ansible.builtin.template:
+        src: thp.service.j2
+        dest: "/etc/systemd/system/disable-transparent-huge-pages.service"
+        owner: root
+        group: root
+        mode: "0644"
+      vars:
+        description: Disable Transparent Hugepages (THP)
+        command: /bin/sh -c 'echo never | tee /sys/kernel/mm/transparent_hugepage/enabled > /dev/null && echo never | tee /sys/kernel/mm/transparent_hugepage/defrag > /dev/null'
+
+    - name: Start THP service
+      ansible.builtin.systemd:
+        name: disable-transparent-huge-pages.service
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Check if tuned is installed
+      ansible.builtin.command:
+        cmd: which tuned-adm
+      register: tuned_installed
+      changed_when: false
+      failed_when: false
+      when: ansible_distribution_file_variety == "RedHat"
+
+    - name: Install and configure tuned
+      when:
+        - ansible_distribution_file_variety == "RedHat"
+        - tuned_installed.rc == 0
+      block:
+        - name: Create custom tuned profile directory
+          ansible.builtin.file:
+            state: directory
+            path: "/etc/tuned/virtual-guest-no-thp"
+            owner: root
+            group: root
+            mode: "0755"
+
+        - name: Ensure tuned does not re-enable THP
+          ansible.builtin.template:
+            src: tuned.conf.j2
+            dest: "/etc/tuned/virtual-guest-no-thp/tuned.conf"
+            owner: root
+            group: root
+            mode: "0644"
+          vars:
+            tuned_action: never
+
+        - name: Enable tuned profile
+          ansible.builtin.command:
+            cmd: tuned-adm profile virtual-guest-no-thp
+          register: result
+          changed_when: result.rc == 0
+          failed_when: result.rc > 0

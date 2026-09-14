@@ -1,0 +1,89 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+# ============================================================================
+# Valkey PKI Configuration - All components customizable
+# ============================================================================
+
+# Base PKI directory - override to use different root location
+valkey_pki_base_dir: /etc/pki/valkey
+
+# Subdirectory names - customize the layout
+valkey_pki_private_subdir: private
+
+# Derived subdirectory paths - built from base + subdir name
+valkey_pki_private_dir: "{{ valkey_pki_base_dir }}/{{ valkey_pki_private_subdir }}"
+
+# ============================================================================
+# Certificate and Key Filenames - Customize naming
+# ============================================================================
+
+# Valkey server certificate filename
+valkey_tls_cert_file: "{{ inventory_hostname }}.crt"
+
+# Valkey server private key filename
+valkey_tls_key_file: "{{ inventory_hostname }}.key"
+
+# Valkey CA certificate filename
+valkey_tls_ca_file: ca-bundle.crt
+
+# Valkey Sentinel certificate filename
+valkey_sentinel_tls_cert_file: "{{ inventory_hostname }}.crt"
+
+# Valkey Sentinel private key filename
+valkey_sentinel_tls_key_file: "{{ inventory_hostname }}.key"
+
+# ============================================================================
+# Source Directory - Define in inventory
+# ============================================================================
+
+# Source directory for certificate files (on Ansible controller)
+valkey_pki_src_dir: ""
+
+# ============================================================================
+# Source File Paths - Built from source directory + filename
+# ============================================================================
+
+# Valkey server certificate source path
+valkey_tls_cert_src: "{{ valkey_pki_src_dir }}/{{ valkey_tls_cert_file }}"
+
+# Valkey server private key source path
+valkey_tls_key_src: "{{ valkey_pki_src_dir }}/{{ valkey_tls_key_file }}"
+
+# Valkey CA certificate source path
+valkey_tls_ca_src: "{{ valkey_pki_src_dir }}/{{ valkey_tls_ca_file }}"
+
+# Sentinel certificate source path
+valkey_sentinel_tls_cert_src: "{{ valkey_pki_src_dir }}/{{ valkey_sentinel_tls_cert_file }}"
+
+# Sentinel private key source path
+valkey_sentinel_tls_key_src: "{{ valkey_pki_src_dir }}/{{ valkey_sentinel_tls_key_file }}"
+
+# ============================================================================
+# Destination File Paths - Built from destination directory + filename
+# ============================================================================
+
+# Valkey server certificate destination path
+valkey_tls_cert_dest: "{{ valkey_pki_base_dir }}/{{ valkey_tls_cert_file }}"
+
+# Valkey server private key destination path
+valkey_tls_key_dest: "{{ valkey_pki_private_dir }}/{{ valkey_tls_key_file }}"
+
+# Valkey CA certificate destination path
+valkey_tls_ca_dest: "{{ valkey_pki_base_dir }}/{{ valkey_tls_ca_file }}"
+
+# Sentinel certificate destination path
+valkey_sentinel_tls_cert_dest: "{{ valkey_pki_base_dir }}/{{ valkey_sentinel_tls_cert_file }}"
+
+# Sentinel private key destination path
+valkey_sentinel_tls_key_dest: "{{ valkey_pki_private_dir }}/{{ valkey_sentinel_tls_key_file }}"
+
+# ============================================================================
+# File Ownership - Customize per environment
+# ============================================================================
+
+# Owner for PKI directories and files
+valkey_pki_owner: valkey
+
+# Group for PKI directories and files
+valkey_pki_group: valkey

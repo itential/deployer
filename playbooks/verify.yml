@@ -5,6 +5,9 @@
 - name: Verify Redis Installation
   import_playbook: itential.deployer.verify_redis
 
+- name: Verify Valkey Installation
+  import_playbook: itential.deployer.verify_valkey
+
 - name: Verify MongoDB Installation
   import_playbook: itential.deployer.verify_mongodb
 

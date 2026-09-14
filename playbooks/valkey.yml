@@ -1,0 +1,23 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+### Valkey
+- name: Configure Valkey data nodes
+  hosts: valkey_master, valkey_replica
+  become: true
+  roles:
+    # Pull in the common vars
+    - role: itential.deployer.common
+
+    # Perform a base installation of Valkey and optionally configure authorization and replication
+    - role: itential.deployer.valkey
+
+- name: Configure Valkey sentinel nodes
+  hosts: valkey_sentinel
+  become: true
+  roles:
+    # Pull in the common vars
+    - role: itential.deployer.common
+
+    # Perform a base installation of Valkey and optionally configure authorization and replication
+    - role: itential.deployer.valkey

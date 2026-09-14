@@ -1,0 +1,21 @@
+---
+# In this example, Valkey is installed and configured using the native EL9 AppStream package.
+# Unlike Redis, this role has only one install method -- there is no source-install or Remi
+# option -- so there is no equivalent "from source" / "from remi repo" example inventory here.
+#
+# Valkey is only supported on RHEL/Rocky/AlmaLinux 9. A host on any other OS or major version
+# will fail validate-vars.yml immediately. Use the redis role on EL8.
+all:
+  vars:
+    # The Platform release must be defined.
+    #  - valid values: 6, 6.0
+    platform_release: 6
+
+  children:
+    valkey_master:
+      hosts:
+        valkey01.example.com:
+      vars:
+        # TLS is disabled in this example. Set valkey_tls_enabled: true and
+        # valkey_pki_src_dir to enable TLS. See the tls_guide.md for details.
+        valkey_tls_enabled: false

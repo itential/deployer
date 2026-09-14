@@ -1,0 +1,28 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+- name: Include tasks to validate variables
+  ansible.builtin.include_tasks:
+    file: validate-vars.yml
+  tags: always
+
+- name: Include tasks to validate offline variables
+  ansible.builtin.include_tasks:
+    file: validate-vars-offline.yml
+
+- name: Download Valkey RPMs
+  ansible.builtin.import_role:
+    name: offline
+    tasks_from: download-rpms
+  vars:
+    offline_download_method: yum_module
+    offline_download_packages: "{{ valkey_packages }} "
+    offline_download_dir: "{{ valkey_offline_target_node_rpms_dir }}/valkey"
+
+- name: Copy Valkey RPMs to control node
+  ansible.builtin.import_role:
+    name: offline
+    tasks_from: fetch-packages
+  vars:
+    offline_src_dir: "{{ valkey_offline_target_node_rpms_dir }}/valkey"
+    offline_dest_dir: "{{ valkey_offline_control_node_rpms_dir }}/valkey"

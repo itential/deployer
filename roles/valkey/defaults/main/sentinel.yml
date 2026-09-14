@@ -1,0 +1,27 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+# The location of the Valkey Sentinel config file
+valkey_sentinel_conf_file: "{{ valkey_conf_dir }}/sentinel.conf"
+
+# The location of the Valkey Sentinel log file
+valkey_sentinel_log: "{{ valkey_log_dir }}/sentinel.log"
+
+# The Valkey Sentinel master name
+valkey_sentinel_master_name: itentialmaster
+
+# The default valkey sentinel listen port
+valkey_sentinel_port: "{{ valkey_sentinel_port_default }}"
+
+# Bind to localhost + private network interface.
+# ansible_default_ipv4.address is not guaranteed to be present (e.g. hosts
+# with no default route), so fall back to an empty string when undefined.
+valkey_sentinel_bind: "127.0.0.1 {{ ansible_default_ipv4.address | default('') }}"
+
+# Auto-calculate quorum based on sentinel count (recommended)
+# Set to explicit number to override (must be <= number of sentinels)
+valkey_sentinel_quorum: auto
+
+# Default location for the certification report files
+valkey_sentinel_certify_report_dir_remote: /var/tmp/itential-reports/sentinel
+valkey_sentinel_certify_report_dir_local: /tmp/itential-reports/sentinel

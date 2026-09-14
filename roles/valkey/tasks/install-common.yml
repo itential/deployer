@@ -1,0 +1,31 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+# Kernel Adjust
+# Memory overcommit must be enabled! Without it, a background save or replication may fail under
+# low memory condition.
+# Being disabled, it can can also cause failures without low memory condition,
+# see https://github.com/jemalloc/jemalloc/issues/1328
+- name: Adjust Memory Overcommit
+  ansible.posix.sysctl:
+    name: vm.overcommit_memory
+    value: 1
+
+- name: Disable Transparent Huge Pages (THP)
+  ansible.builtin.import_tasks:
+    file: disable-thp.yml
+
+- name: Create Valkey group
+  ansible.builtin.group:
+    name: "{{ valkey_group }}"
+
+- name: Create Valkey user
+  ansible.builtin.user:
+    name: "{{ valkey_owner }}"
+    group: "{{ valkey_group }}"
+    state: present
+
+# The AppStream package creates /etc/valkey, /var/lib/valkey, /var/log/valkey and
+# /usr/bin/valkey-server itself (with correct ownership and SELinux file contexts already
+# applied by the base OS's selinux-policy), so unlike roles/redis (which also supports a
+# from-source install with non-default paths), there is no directory-creation step here.

@@ -1,0 +1,17 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+# Default directories
+valkey_bin_dir_default: /usr/bin
+valkey_conf_dir_default: /etc/valkey
+valkey_log_dir_default: /var/log/valkey
+valkey_data_dir_default: /var/lib/valkey
+
+# Default ports
+valkey_port_default: 6379
+valkey_sentinel_port_default: 26379
+
+# Valkey is installed exclusively via the native EL9 AppStream module, which is part of the
+# base OS subscription/mirror set. Unlike roles/redis there is no separate external
+# repository (Remi, EPEL, upstream source) that needs a connectivity check.
+valkey_required_repositories: []

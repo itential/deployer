@@ -1,0 +1,16 @@
+[Unit]
+Description=Valkey persistent key-value database
+After=network.target
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart={{valkey_bin_dir }}/valkey-server {{ valkey_conf_file }} --daemonize no --supervised systemd
+Type=notify
+User={{ valkey_owner }}
+Group={{ valkey_group }}
+RuntimeDirectory=valkey
+RuntimeDirectoryMode=0755
+
+[Install]
+WantedBy=multi-user.target

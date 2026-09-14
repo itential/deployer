@@ -1,0 +1,23 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+# The keys represent the EL major version (ansible_distribution_major_version).
+# Valkey is only supported on EL9, installed via the native AppStream module -- there is no
+# "8" or "2023" entry (see validate-vars.yml, which asserts EL9 before this is ever looked up).
+valkey_packages_default:
+  "9":
+    - "valkey"
+
+valkey_hw_specs:
+  "dev":
+    "cpu_count": 8
+    "ram_size": 16
+    "disk_size": 100
+  "test":
+    "cpu_count": 8
+    "ram_size": 32
+    "disk_size": 100
+  "prod":
+    "cpu_count": 8
+    "ram_size": 32
+    "disk_size": 100
