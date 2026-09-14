@@ -2,7 +2,7 @@
 
 ## Overview
 
-`itential.deployer` is an Ansible collection (namespace: `itential`, version: `3.7.2`) that deploys the full Itential automation platform stack: Itential Platform (IAP), Itential Automation Gateway (IAG), MongoDB, and Redis. It supports online and offline (air-gapped) installations, TLS configuration, and multiple deployment topologies.
+`itential.deployer` is an Ansible collection (namespace: `itential`, version: `3.7.2`) that deploys the full Itential automation platform stack: Itential Platform (IAP), Itential Automation Gateway (IAG), MongoDB, and Redis (or Valkey as a Remi-free, EL9-only alternative). It supports online and offline (air-gapped) installations, TLS configuration, and multiple deployment topologies.
 
 ## Collection Metadata
 
@@ -35,6 +35,7 @@ Also requires the `jmespath` Python module on the control node.
 | `gateway.yml` | `itential.deployer.gateway` | Install IAG on `gateway` hosts |
 | `mongodb.yml` | `itential.deployer.mongodb` | Install MongoDB on `mongodb_primary`, `mongodb_replica`, `mongodb_arbiter` hosts |
 | `redis.yml` | `itential.deployer.redis` | Install Redis on `redis_master`/`redis_replica`; Sentinel on `redis_sentinel` hosts |
+| `valkey.yml` | `itential.deployer.valkey` | Install Valkey on `valkey_master`/`valkey_replica`; Sentinel on `valkey_sentinel` hosts (EL9 only) |
 | `os.yml` | `itential.deployer.os` | Install base OS packages on all component hosts |
 | `nginx.yml` | `itential.deployer.nginx` | Install and configure nginx (wraps `nginxinc.nginx` and `nginxinc.nginx_config`) |
 | `nginx_install.yml` | `itential.deployer.nginx_install` | Install nginx only |
@@ -43,10 +44,12 @@ Also requires the `jmespath` Python module on the control node.
 | `patch_gateway.yml` | `itential.deployer.patch_gateway` | Upgrade IAG in-place |
 | `certify.yml` | `itential.deployer.certify` | Run all certification playbooks (Redis + MongoDB + Platform) |
 | `certify_redis.yml` | `itential.deployer.certify_redis` | Generate Redis/Sentinel installation certification reports |
+| `certify_valkey.yml` | `itential.deployer.certify_valkey` | Generate Valkey/Sentinel installation certification reports |
 | `certify_mongodb.yml` | `itential.deployer.certify_mongodb` | Generate MongoDB installation certification reports |
 | `certify_platform.yml` | `itential.deployer.certify_platform` | Generate Platform installation certification reports |
 | `verify.yml` | `itential.deployer.verify` | Pre-install environment verification (OS, HW specs, proxy, required repository connectivity) for all components |
 | `verify_redis.yml` | `itential.deployer.verify_redis` | Pre-install verification for Redis hosts |
+| `verify_valkey.yml` | `itential.deployer.verify_valkey` | Pre-install verification for Valkey hosts |
 | `verify_mongodb.yml` | `itential.deployer.verify_mongodb` | Pre-install verification for MongoDB hosts |
 | `verify_platform.yml` | `itential.deployer.verify_platform` | Pre-install verification for Platform hosts |
 | `verify_gateway.yml` | `itential.deployer.verify_gateway` | Pre-install verification for Gateway hosts |
@@ -57,6 +60,7 @@ Also requires the `jmespath` Python module on the control node.
 | `download_packages_gateway_site.yml` | `itential.deployer.download_packages_gateway_site` | Wraps `download_packages_gateway` with a tag |
 | `download_packages_mongodb.yml` | `itential.deployer.download_packages_mongodb` | Download MongoDB packages for offline install |
 | `download_packages_redis.yml` | `itential.deployer.download_packages_redis` | Download Redis packages for offline install |
+| `download_packages_valkey.yml` | `itential.deployer.download_packages_valkey` | Download Valkey packages for offline install |
 | `download_packages_os.yml` | `itential.deployer.download_packages_os` | Download OS packages for offline install |
 
 ## Inventory Topology Options
@@ -69,6 +73,7 @@ Also requires the `jmespath` Python module on the control node.
 | `asa` | `example_inventories/asa/` | Active/Standby: 5-node MongoDB (4 data + 1 arbiter across 3 DCs), 4-node Redis across 3 DCs. Disaster recovery topology. |
 | `platform` | `example_inventories/platform/` | Platform-only example showing external (managed) Redis/MongoDB via URL. |
 | `redis` | `example_inventories/redis/` | Redis-only examples: install from Remi repo, from system repo, or from source. |
+| `valkey` | `example_inventories/valkey/` | Valkey-only example: install via the native EL9 AppStream package (the only supported method). |
 
 ## Roles Summary
 
@@ -81,6 +86,7 @@ Also requires the `jmespath` Python module on the control node.
 | `offline` | Shared utility role for downloading and installing RPMs/wheels/adapters in air-gapped mode. |
 | `mongodb` | Installs and configures MongoDB: users, replica set, auth, TLS, kernel tuning, SELinux, logrotate, NUMA. |
 | `redis` | Installs and configures Redis (from source or repo) and Redis Sentinel: auth, TLS, replication, SELinux. |
+| `valkey` | Installs and configures Valkey (via the native EL9 AppStream package only) and Valkey Sentinel: auth, TLS, replication. No source install, no Remi, no EL8 support, no role-level SELinux step (handled entirely by the base OS policy). |
 | `platform` | Installs and configures Itential Platform: NodeJS, Python, RPM packages, adapters, properties file, TLS certs, Vault, SELinux. |
 | `gateway` | Installs and configures Itential Automation Gateway (IAG): Python venv, Ansible, Nornir, TLS certs, systemd service, SELinux. |
 
@@ -102,12 +108,13 @@ Also requires the `jmespath` Python module on the control node.
 
 ## TLS Overview
 
-TLS is supported at the component level and is **enabled by default** for MongoDB and Platform, and **disabled by default** for Redis.
+TLS is supported at the component level and is **enabled by default** for MongoDB, Platform, and Valkey, and **disabled by default** for Redis.
 
 | Component | Enable Flag | Copy-Certs Flag | PKI Base Dir |
 |-----------|------------|-----------------|--------------|
 | MongoDB | `mongodb_tls_enabled: true` | `mongodb_tls_copy_certs: true` | `/etc/pki/mongodb` |
 | Redis | `redis_tls_enabled: false` | n/a (always copies when TLS enabled) | `/etc/pki/redis` |
+| Valkey | `valkey_tls_enabled: true` | n/a (always copies when TLS enabled) | `/etc/pki/valkey` |
 | Platform (HTTPS) | `platform_webserver_https_enabled: true` | `platform_webserver_https_copy_certs: true` | `/etc/pki/itential-platform/https` |
 | Platform (MongoDB client) | `platform_mongo_tls_enabled: true` | `platform_mongodb_copy_certs: true` | `/etc/pki/itential-platform/mongodb` |
 | Gateway (HTTPS) | `gateway_https_enabled: true` | `gateway_pki_copy_certs: true` | `/etc/pki/automation-gateway` |
@@ -149,6 +156,7 @@ See `docs/offline_install_guide.md` for the full workflow.
 | `docs/itential_gateway_guide.md` | Gateway role variables, feature flags, Ansible/Nornir config |
 | `docs/mongodb_guide.md` | MongoDB role variables, replica set, TLS, user accounts |
 | `docs/redis_guide.md` | Redis role variables, Sentinel, TLS, install methods |
+| `docs/valkey_guide.md` | Valkey role variables, Sentinel, TLS, EL9-only AppStream install |
 | `docs/tls_guide.md` | End-to-end TLS configuration guide across all components |
 | `docs/offline_install_guide.md` | Step-by-step offline (air-gapped) install workflow |
 | `docs/patch_itential_platform_guide.md` | How to run `patch_platform.yml` to upgrade Platform |
