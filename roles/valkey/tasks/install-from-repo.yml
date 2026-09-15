@@ -1,0 +1,17 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+- name: Install Valkey from packages
+  ansible.builtin.dnf:
+    name: '{{ valkey_packages }}'
+    state: present
+    update_cache: true
+  when: not offline_install_enabled | bool
+
+- name: Install Valkey from packages (offline)
+  ansible.builtin.import_role:
+    name: offline
+    tasks_from: install-rpms
+  when: offline_install_enabled | bool
+  vars:
+    offline_rpms_path: "{{ valkey_offline_control_node_rpms_dir }}/valkey"

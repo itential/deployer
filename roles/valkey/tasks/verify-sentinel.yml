@@ -1,0 +1,35 @@
+# Copyright (c) 2026, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+
+- name: Load Itential Platform release default variables
+  ansible.builtin.include_vars:
+    file: "{{ item }}"
+  with_first_found:
+    - "platform-release-{{ platform_release }}.yml"
+    - "platform-release-{{ platform_release | string | split('.') | first }}.yml"
+    - "platform-release-undefined.yml"
+
+- name: Verify Valkey Sentinel host requirements
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: verify-host
+  vars:
+    component_name: "Valkey Sentinel"
+    hw_specs_var_name: "valkey_hw_specs"
+
+# valkey sentinel specific verification tasks go here...
+
+- name: Verify connectivity to required public repositories
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: verify-connectivity
+  vars:
+    required_repositories: "{{ valkey_required_repositories }}"
+
+- name: Report Valkey Sentinel results
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: verify-results
+  vars:
+    component_name: "Valkey Sentinel"

@@ -1,0 +1,437 @@
+# Copyright (c) 2026, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+
+- name: Ensure report directory exists
+  ansible.builtin.file:
+    path: "{{ valkey_certify_report_dir_remote }}"
+    state: directory
+    owner: "{{ valkey_owner }}"
+    group: "{{ valkey_group }}"
+    mode: "0755"
+
+- name: Set report filename
+  ansible.builtin.set_fact:
+    valkey_certify_report_file: "{{ valkey_certify_report_dir_remote }}/valkey-report-{{ inventory_hostname }}.md"
+
+- name: Gather host information
+  itential.deployer.gather_host_information:
+  register: host_details
+
+- name: Check if Valkey service exists
+  ansible.builtin.systemd:
+    name: valkey
+  register: valkey_service_check
+  failed_when: false
+  changed_when: false
+
+- name: Get Valkey service status
+  ansible.builtin.systemd:
+    name: valkey
+  register: valkey_service_status
+  when: valkey_service_check.status is defined
+
+- name: Check Valkey process
+  ansible.builtin.shell: set -o pipefail && ps aux | grep valkey-server | grep -v grep
+  register: valkey_process
+  failed_when: false
+  changed_when: false
+
+- name: Set Valkey CLI TLS arguments
+  ansible.builtin.set_fact:
+    valkey_cli_tls_args: "{% if valkey_tls_enabled | bool %}--tls --cacert {{ valkey_tls_ca_dest }}{% endif %}"
+
+- name: Set topology facts
+  ansible.builtin.set_fact:
+    valkey_has_replicas: "{{ groups['valkey_replica'] is defined and groups['valkey_replica'] | length > 0 }}"
+    valkey_has_sentinels: "{{ groups['valkey_sentinel'] is defined and groups['valkey_sentinel'] | length > 0 }}"
+
+- name: Test Valkey connectivity
+  ansible.builtin.shell: |
+    set -o pipefail &&
+    {{ valkey_bin_dir }}/valkey-cli \
+      {{ valkey_cli_tls_args }} \
+      --user admin \
+      -p {{ valkey_port }} \
+      -a "{{ valkey_user_admin_password }}" \
+      --no-auth-warning \
+      PING
+  register: valkey_ping
+  failed_when: false
+  changed_when: false
+
+- name: Get Valkey version
+  ansible.builtin.shell: |
+    set -o pipefail && \
+    {{ valkey_bin_dir }}/valkey-server --version
+  register: valkey_version
+  changed_when: false
+
+- name: Get Valkey INFO
+  ansible.builtin.shell: |
+    set -o pipefail &&
+    {{ valkey_bin_dir }}/valkey-cli \
+      {{ valkey_cli_tls_args }} \
+      --user admin \
+      -p {{ valkey_port }} \
+      -a "{{ valkey_user_admin_password }}" \
+      --no-auth-warning \
+      INFO
+  register: valkey_info
+  when: valkey_ping.rc == 0
+  failed_when: false
+  changed_when: false
+
+- name: Get Valkey configuration
+  ansible.builtin.shell: |
+    set -o pipefail &&
+    {{ valkey_bin_dir }}/valkey-cli \
+      {{ valkey_cli_tls_args }} \
+      --json \
+      --user admin \
+      -p {{ valkey_port }} \
+      -a "{{ valkey_user_admin_password }}" \
+      --no-auth-warning \
+      CONFIG GET '*'
+  register: valkey_config
+  when: valkey_ping.rc == 0
+  failed_when: false
+  changed_when: false
+
+- name: Check Valkey configuration file
+  ansible.builtin.stat:
+    path: /etc/valkey/valkey.conf
+  register: valkey_conf_file
+
+- name: Get Valkey configuration file permissions
+  ansible.builtin.shell: set -o pipefail && ls -lh /etc/valkey/valkey.conf
+  register: valkey_conf_permissions
+  when: valkey_conf_file.stat.exists
+  changed_when: false
+
+- name: Check if Valkey is using systemd
+  ansible.builtin.stat:
+    path: /usr/lib/systemd/system/valkey.service
+  register: valkey_systemd_file
+
+- name: Get listening ports
+  ansible.builtin.shell: set -o pipefail && netstat -tlnp | grep valkey | ss -tlnp | grep valkey
+  register: valkey_ports
+  failed_when: false
+  changed_when: false
+
+- name: Check Valkey log file
+  ansible.builtin.shell: |
+    set -o pipefail &&
+    if [ -f /var/log/valkey/valkey.log ]; then
+      tail -50 /var/log/valkey/valkey.log
+    else
+      echo "Log file not found in standard location"
+    fi
+  register: valkey_logs
+  changed_when: false
+
+- name: Parse Valkey INFO for key metrics
+  ansible.builtin.set_fact:
+    valkey_metrics:
+      version: "{{ valkey_info.stdout | regex_search('valkey_version:([^\\r\\n]+)', '\\1') }}"
+      os: "{{ valkey_info.stdout | regex_search('os:([^\\r\\n]+)', '\\1') }}"
+      executable: "{{ valkey_info.stdout | regex_search('executable:([^\\r\\n]+)', '\\1') }}"
+      config_file: "{{ valkey_info.stdout | regex_search('config_file:([^\\r\\n]+)', '\\1') }}"
+      port: "{{ valkey_info.stdout | regex_search('tcp_port:([^\\r\\n]+)', '\\1') }}"
+      role: "{{ valkey_info.stdout | regex_search('role:([^\\r\\n]+)', '\\1') }}"
+      mode: "{{ valkey_info.stdout | regex_search('valkey_mode:([^\\r\\n]+)', '\\1') }}"
+      slaves: "{{ valkey_info.stdout | regex_search('connected_slaves:([^\\r\\n]+)', '\\1') }}"
+      master_host: "{{ valkey_info.stdout | regex_search('master_host:([^\\r\\n]+)', '\\1') }}"
+      master_port: "{{ valkey_info.stdout | regex_search('master_port:([^\\r\\n]+)', '\\1') }}"
+      master_link: "{{ valkey_info.stdout | regex_search('master_link_status:([^\\r\\n]+)', '\\1') }}"
+      clients: "{{ valkey_info.stdout | regex_search('connected_clients:([^\\r\\n]+)', '\\1') }}"
+      bind_address: "{{ valkey_config.results[2].stdout_lines[1] | default(['0.0.0.0'], true) }}"
+      users: "{{ valkey_config.results[0].stdout_lines | default(['N/A'], true) }}"
+  when:
+    - valkey_info.rc is defined
+    - valkey_info.rc == 0
+
+- name: Get list of configured Valkey users
+  ansible.builtin.shell: |
+    set -o pipefail &&
+    {{ valkey_bin_dir }}/valkey-cli \
+      {{ valkey_cli_tls_args }} \
+      --json \
+      --user admin \
+      -p {{ valkey_port }} \
+      -a "{{ valkey_user_admin_password }}" \
+      --no-auth-warning \
+      ACL LIST
+  when:
+    - valkey_info.rc is defined
+    - valkey_info.rc == 0
+  register: valkey_acl_list
+  no_log: false
+  failed_when: false
+  changed_when: false
+
+- name: Parse Valkey ACL list into structured format
+  ansible.builtin.set_fact:
+    valkey_users: >-
+      {%- set result = [] -%}
+      {%- for acl_entry in (valkey_acl_list.stdout | from_json) -%}
+        {%- set parts = acl_entry.split() -%}
+        {%- if parts | length >= 3 and parts[0] == 'user' -%}
+          {%- set user_obj = {'user': parts[1], 'enabled': (parts[2] == 'on')} -%}
+          {%- set _ = result.append(user_obj) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ result }}
+  when: valkey_info.rc is defined and valkey_info.rc == 0
+
+- name: Confirm "itential" user login
+  ansible.builtin.shell: |
+    set -o pipefail &&
+    {{ valkey_bin_dir }}/valkey-cli \
+      {{ valkey_cli_tls_args }} \
+      --user itential \
+      -p {{ valkey_port }} \
+      -a "{{ valkey_user_itential_password }}" \
+      --no-auth-warning \
+      PING
+  register: valkey_itential_user_ping
+  failed_when: false
+  changed_when: false
+
+- name: Confirm "repluser" user login
+  ansible.builtin.shell: |
+    set -o pipefail &&
+    {{ valkey_bin_dir }}/valkey-cli \
+      {{ valkey_cli_tls_args }} \
+      --user repluser \
+      -p {{ valkey_port }} \
+      -a "{{ valkey_user_repluser_password }}" \
+      --no-auth-warning \
+      PING
+  register: valkey_repl_user_ping
+  failed_when: false
+  changed_when: false
+  when: valkey_has_replicas | bool
+
+- name: Confirm "sentineluser" user login
+  ansible.builtin.shell: |
+    set -o pipefail &&
+    {{ valkey_bin_dir }}/valkey-cli \
+      {{ valkey_cli_tls_args }} \
+      --user sentineluser \
+      -p {{ valkey_port }} \
+      -a "{{ valkey_user_sentineluser_password }}" \
+      --no-auth-warning \
+      PING
+  register: valkey_sentineluser_user_ping
+  failed_when: false
+  changed_when: false
+  when: valkey_has_sentinels | bool
+
+- name: Confirm "monitor" user login (Valkey)
+  ansible.builtin.shell: |
+    set -o pipefail &&
+    {{ valkey_bin_dir }}/valkey-cli \
+      {{ valkey_cli_tls_args }} \
+      --user monitor \
+      -p {{ valkey_port }} \
+      -a "{{ valkey_user_monitor_password }}" \
+      --no-auth-warning \
+      PING
+  register: valkey_monitor_user_ping
+  failed_when: false
+  changed_when: false
+  when:
+    - valkey_monitor_user_enabled | bool
+    - valkey_user_monitor_password is truthy
+
+# =========================================================================
+# TLS/SSL CHECKS
+# =========================================================================
+
+- name: Check TLS server certificate file exists
+  ansible.builtin.stat:
+    path: "{{ valkey_tls_cert_dest }}"
+  register: valkey_tls_cert_stat
+  when: valkey_tls_enabled | bool
+
+- name: Check TLS private key file exists
+  ansible.builtin.stat:
+    path: "{{ valkey_tls_key_dest }}"
+  register: valkey_tls_key_stat
+  when: valkey_tls_enabled | bool
+
+- name: Check TLS CA certificate file exists
+  ansible.builtin.stat:
+    path: "{{ valkey_tls_ca_dest }}"
+  register: valkey_tls_ca_stat
+  when: valkey_tls_enabled | bool
+
+- name: Get TLS server certificate dates
+  ansible.builtin.shell: |
+    openssl x509 -in {{ valkey_tls_cert_dest }} -noout -dates
+  register: valkey_tls_cert_dates
+  ignore_errors: true
+  changed_when: false
+  when:
+    - valkey_tls_enabled | bool
+    - valkey_tls_cert_stat.stat.exists | default(false)
+
+- name: Check TLS server certificate 30-day expiry
+  ansible.builtin.shell: |
+    openssl x509 -in {{ valkey_tls_cert_dest }} -noout -checkend 2592000
+  register: valkey_tls_cert_expiry_check
+  ignore_errors: true
+  changed_when: false
+  failed_when: false
+  when:
+    - valkey_tls_enabled | bool
+    - valkey_tls_cert_stat.stat.exists | default(false)
+
+- name: Get TLS server certificate subject and issuer
+  ansible.builtin.shell: |
+    openssl x509 -in {{ valkey_tls_cert_dest }} -noout -subject -issuer
+  register: valkey_tls_cert_subject_issuer
+  ignore_errors: true
+  changed_when: false
+  when:
+    - valkey_tls_enabled | bool
+    - valkey_tls_cert_stat.stat.exists | default(false)
+
+- name: Get TLS server certificate SANs
+  ansible.builtin.shell: >
+    openssl x509 -noout -ext subjectAltName
+    -in {{ valkey_tls_cert_dest }} 2>/dev/null || echo "No SANs found"
+  register: valkey_tls_cert_sans
+  ignore_errors: true
+  changed_when: false
+  when:
+    - valkey_tls_enabled | bool
+    - valkey_tls_cert_stat.stat.exists | default(false)
+
+- name: Check if inventory_hostname is in certificate SANs
+  ansible.builtin.set_fact:
+    valkey_tls_san_hostname_match: >-
+      {{ (inventory_hostname | default('')) in
+      ((valkey_tls_cert_sans | default({})).stdout | default('')) }}
+  when:
+    - valkey_tls_enabled | bool
+    - valkey_tls_cert_sans is defined
+    - valkey_tls_cert_sans.stdout is defined
+    - valkey_tls_cert_sans.stdout != ''
+
+- name: Check if ansible_host is in certificate SANs
+  ansible.builtin.set_fact:
+    valkey_tls_san_ip_match: >-
+      {{ (ansible_host | default('')) in
+      ((valkey_tls_cert_sans | default({})).stdout | default('')) }}
+  when:
+    - valkey_tls_enabled | bool
+    - valkey_tls_cert_sans is defined
+    - valkey_tls_cert_sans.stdout is defined
+    - valkey_tls_cert_sans.stdout != ''
+    - ansible_host is defined
+    - ansible_host != inventory_hostname
+
+- name: Get TLS CA certificate dates
+  ansible.builtin.shell: |
+    openssl x509 -in {{ valkey_tls_ca_dest }} -noout -dates
+  register: valkey_tls_ca_dates
+  ignore_errors: true
+  changed_when: false
+  when:
+    - valkey_tls_enabled | bool
+    - valkey_tls_ca_stat.stat.exists | default(false)
+
+- name: Check TLS CA certificate 30-day expiry
+  ansible.builtin.shell: |
+    openssl x509 -in {{ valkey_tls_ca_dest }} -noout -checkend 2592000
+  register: valkey_tls_ca_expiry_check
+  ignore_errors: true
+  changed_when: false
+  failed_when: false
+  when:
+    - valkey_tls_enabled | bool
+    - valkey_tls_ca_stat.stat.exists | default(false)
+
+- name: Get TLS certificate public key fingerprint
+  ansible.builtin.shell: openssl x509 -pubkey -noout -in {{ valkey_tls_cert_dest }} | openssl md5
+  register: valkey_tls_cert_pubkey_md5
+  ignore_errors: true
+  changed_when: false
+  no_log: true
+  when:
+    - valkey_tls_enabled | bool
+    - valkey_tls_cert_stat.stat.exists | default(false)
+
+- name: Get TLS private key public key fingerprint
+  ansible.builtin.shell: openssl pkey -pubout -in {{ valkey_tls_key_dest }} | openssl md5
+  register: valkey_tls_key_pubkey_md5
+  ignore_errors: true
+  changed_when: false
+  no_log: true
+  when:
+    - valkey_tls_enabled | bool
+    - valkey_tls_key_stat.stat.exists | default(false)
+
+- name: Determine TLS cert-key pair match
+  ansible.builtin.set_fact:
+    valkey_tls_cert_key_match: >-
+      {{ valkey_tls_cert_pubkey_md5.stdout == valkey_tls_key_pubkey_md5.stdout }}
+  when:
+    - valkey_tls_cert_pubkey_md5 is defined
+    - valkey_tls_cert_pubkey_md5.rc | default(1) == 0
+    - valkey_tls_key_pubkey_md5 is defined
+    - valkey_tls_key_pubkey_md5.rc | default(1) == 0
+
+- name: Validate TLS certificate chain
+  ansible.builtin.shell: >
+    openssl verify -CAfile {{ valkey_tls_ca_dest }} {{ valkey_tls_cert_dest }}
+  register: valkey_tls_chain_valid
+  ignore_errors: true
+  changed_when: false
+  when:
+    - valkey_tls_enabled | bool
+    - valkey_tls_cert_stat.stat.exists | default(false)
+    - valkey_tls_ca_stat.stat.exists | default(false)
+
+- name: Perform live Valkey TLS handshake test
+  ansible.builtin.shell: >
+    echo | openssl s_client
+    -connect {{ inventory_hostname }}:{{ valkey_port }}
+    -CAfile {{ valkey_tls_ca_dest }}
+    -servername {{ inventory_hostname }} 2>&1 |
+    grep -E "Verify return code|subject=|issuer="
+  register: valkey_tls_handshake
+  ignore_errors: true
+  changed_when: false
+  when:
+    - valkey_tls_enabled | bool
+    - valkey_tls_ca_stat.stat.exists | default(false)
+
+# =========================================================================
+# Generate the report and copy to control node
+# =========================================================================
+- name: Generate validation report
+  ansible.builtin.template:
+    backup: true
+    dest: "{{ valkey_certify_report_file }}"
+    group: "{{ valkey_group }}"
+    mode: "0665"
+    owner: "{{ valkey_owner }}"
+    src: valkey-validation-report.md.j2
+
+- name: Copy validation report to the control node
+  ansible.builtin.fetch:
+    dest: "{{ valkey_certify_report_dir_local }}/"
+    fail_on_missing: false
+    flat: true
+    src: "{{ valkey_certify_report_file }}"
+
+- name: Display report summary
+  ansible.builtin.debug:
+    msg:
+      - "Valkey validation complete for {{ inventory_hostname }}"
+      - "Overall Status: {{ 'PASSED ✓' if (valkey_ping.rc == 0 and valkey_process.rc == 0) else 'FAILED ✗' }}"
+      - "Report saved to: {{ valkey_certify_report_file }} on both the remote and control nodes."

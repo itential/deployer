@@ -1,0 +1,441 @@
+# Valkey Installation Validation Report
+
+- **Generated:** {{ ansible_date_time.iso8601 | default('Unknown') }}
+- **Hostname:** {{ inventory_hostname | default('Unknown') }}
+- **IP Address:** {{ ansible_default_ipv4.address | default('N/A') }}
+- **OS:** {{ ansible_distribution | default('Unknown') }} {{ ansible_distribution_version | default('') }}
+
+---
+
+## Host Details
+
+{% if host_details is defined %}
+### Operating System
+- **Distribution:** {{ host_details.os.distribution | default('Unknown') }} {{ host_details.os.distribution_version | default('') }}
+- **OS Family:** {{ host_details.os.os_family | default('Unknown') }}
+- **Kernel:** {{ host_details.os.kernel | default('Unknown') }}
+- **Architecture:** {{ host_details.os.architecture | default('Unknown') }}
+- **Hostname:** {{ host_details.os.hostname | default('Unknown') }}
+- **FQDN:** {{ host_details.os.fqdn | default('Unknown') }}
+
+### Hardware
+- **CPU Count:** {{ host_details.hardware.cpu.processor_count | default('Unknown') }}
+- **CPU Cores:** {{ host_details.hardware.cpu.processor_cores | default('Unknown') }}
+- **CPU vCPUs:** {{ host_details.hardware.cpu.processor_vcpus | default('Unknown') }}
+- **Threads per Core:** {{ host_details.hardware.cpu.processor_threads_per_core | default('Unknown') }}
+- **Total Memory:** {{ host_details.hardware.memory.memtotal_mb | default('Unknown') }} MB
+- **Free Memory:** {{ host_details.hardware.memory.memfree_mb | default('Unknown') }} MB
+- **Swap Total:** {{ host_details.hardware.memory.swaptotal_mb | default('Unknown') }} MB
+
+### Disk Mounts
+{% if host_details.hardware.disk is defined and host_details.hardware.disk | length > 0 %}
+{% for disk in host_details.hardware.disk %}
+- **{{ disk.mount }}:** {{ disk.size_gb }} GB
+{% endfor %}
+{% else %}
+- No disk information available
+{% endif %}
+
+### Networking
+- **Primary IP:** {{ host_details.networking.default_ipv4.address | default('N/A') }}
+- **Gateway:** {{ host_details.networking.default_ipv4.gateway | default('N/A') }}
+- **Interface:** {{ host_details.networking.default_ipv4.interface | default('N/A') }}
+- **MAC Address:** {{ host_details.networking.default_ipv4.macaddress | default('N/A') }}
+
+### Security
+{% if host_details.security.selinux is defined %}
+- **SELinux Status:** {{ host_details.security.selinux.status | default('Unknown') }}
+- **SELinux Mode:** {{ host_details.security.selinux.mode | default('Unknown') }}
+- **SELinux Type:** {{ host_details.security.selinux.type | default('Unknown') }}
+{% endif %}
+{% if host_details.security.firewalld is defined %}
+- **Firewalld:** {{ host_details.security.firewalld.state | default('Unknown') }}
+{% endif %}
+{% else %}
+Host details not available
+{% endif %}
+
+---
+
+## Service Status
+
+{% if valkey_service_status is defined and valkey_service_status.status is defined %}
+- **Service Name:** {{ valkey_service_status.name | default('Unknown') }}
+- **Service State:** {{ valkey_service_status.status.ActiveState | default('Unknown') }}
+- **Service SubState:** {{ valkey_service_status.status.SubState | default('Unknown') }}
+- **Service Enabled:** {{ valkey_service_status.status.UnitFileState | default('Unknown') }}
+{% else %}
+- **Service Status:** Could not determine (service may not exist)
+{% endif %}
+
+**Process Running:** {{ 'YES ✓' if (valkey_process is defined and valkey_process.rc == 0) else 'NO' }}
+
+{% if valkey_process is defined and valkey_process.rc == 0 %}
+**Process Details:**
+```
+{{ valkey_process.stdout | default('N/A') }}
+```
+{% endif %}
+
+---
+
+## Connectivity
+
+- **Valkey Port:** {{ valkey_port | default('6379') }}
+- **Ping Response:** {{ valkey_ping.stdout | default('FAILED') if valkey_ping is defined else 'FAILED' }}
+- **Connection Status:** {{ 'SUCCESS ✓' if (valkey_ping is defined and valkey_ping.rc == 0) else 'FAILED' }}
+
+**Listening Ports:**
+```
+{{ valkey_ports.stdout | default('Could not determine') if valkey_ports is defined else 'Could not determine' }}
+```
+
+---
+
+## Version Information
+
+```
+{{ valkey_version.stdout | default('Version information not available') if valkey_version is defined else 'Version information not available' }}
+```
+
+---
+
+## Valkey Metrics (from INFO)
+
+{% if valkey_metrics is defined %}
+- **OS:** {{ valkey_metrics.os | default(['N/A'], true) | first }}
+- **Valkey Version:** {{ valkey_metrics.version | default(['N/A'], true) | first }}
+- **Executable:** {{ valkey_metrics.executable | default(['N/A'], true) | first }}
+- **Valkey Mode:** {{ valkey_metrics.mode | default(['N/A'], true) | first }}
+- **Role:** {{ valkey_metrics.role | default(['N/A'], true) | first }}
+- **Connected Clients:** {{ valkey_metrics.clients | default(['N/A'], true) | first }}
+- **Connected Slaves:** {{ valkey_metrics.slaves | default(['0'], true) | first }}
+- **Master Host:** {{ valkey_metrics.master_host | default(['N/A'], true) | first }}
+- **Master Port:** {{ valkey_metrics.master_port | default(['N/A'], true) | first }}
+- **Master Connection:** {{ valkey_metrics.master_link | default(['N/A'], true) | first }}
+{% else %}
+Valkey INFO not available - check connectivity and authentication
+{% endif %}
+
+---
+
+## Configuration File
+
+- **Config File Exists:** {{ valkey_conf_file.stat.exists if (valkey_conf_file is defined and valkey_conf_file.stat is defined) else 'Unknown' }}
+{% if valkey_conf_file is defined and valkey_conf_file.stat is defined and valkey_conf_file.stat.exists %}
+- **Config File Path:** `/etc/valkey/valkey.conf`
+- **Permissions:** {{ valkey_conf_permissions.stdout | default('Unknown') if valkey_conf_permissions is defined else 'Unknown' }}
+{% endif %}
+
+- **Systemd Unit File:** {{ valkey_systemd_file.stat.exists if (valkey_systemd_file is defined and valkey_systemd_file.stat is defined) else 'Unknown' }}
+{% if valkey_systemd_file is defined and valkey_systemd_file.stat is defined and valkey_systemd_file.stat.exists %}
+- **Unit File Path:** `/etc/systemd/system/valkey.service`
+{% endif %}
+
+---
+
+## TLS Certificates
+
+{% if valkey_tls_enabled | bool %}
+- **TLS Status:** ENABLED
+
+#### Files
+
+| File | Exists | Permissions | Path |
+|------|--------|-------------|------|
+| Certificate | {{ 'YES' if (valkey_tls_cert_stat is defined and valkey_tls_cert_stat.stat is defined and valkey_tls_cert_stat.stat.exists) else 'NO' }} | {{ valkey_tls_cert_stat.stat.mode | default('N/A') if (valkey_tls_cert_stat is defined and valkey_tls_cert_stat.stat is defined and valkey_tls_cert_stat.stat.exists) else 'N/A' }} | {{ valkey_tls_cert_dest }} |
+| Private Key | {{ 'YES' if (valkey_tls_key_stat is defined and valkey_tls_key_stat.stat is defined and valkey_tls_key_stat.stat.exists) else 'NO' }} | {{ valkey_tls_key_stat.stat.mode | default('N/A') if (valkey_tls_key_stat is defined and valkey_tls_key_stat.stat is defined and valkey_tls_key_stat.stat.exists) else 'N/A' }} | {{ valkey_tls_key_dest }} |
+| CA Bundle | {{ 'YES' if (valkey_tls_ca_stat is defined and valkey_tls_ca_stat.stat is defined and valkey_tls_ca_stat.stat.exists) else 'NO' }} | {{ valkey_tls_ca_stat.stat.mode | default('N/A') if (valkey_tls_ca_stat is defined and valkey_tls_ca_stat.stat is defined and valkey_tls_ca_stat.stat.exists) else 'N/A' }} | {{ valkey_tls_ca_dest }} |
+
+{% if valkey_tls_cert_stat is defined and valkey_tls_cert_stat.stat is defined and valkey_tls_cert_stat.stat.exists %}
+#### Certificate Details
+
+{% if valkey_tls_cert_subject_issuer is defined and valkey_tls_cert_subject_issuer.rc is defined and valkey_tls_cert_subject_issuer.rc == 0 %}
+- **Subject:** {{ valkey_tls_cert_subject_issuer.stdout_lines | select('match', '^subject') | first | default('Unknown') }}
+- **Issuer:** {{ valkey_tls_cert_subject_issuer.stdout_lines | select('match', '^issuer') | first | default('Unknown') }}
+{% endif %}
+
+#### Validity
+
+{% if valkey_tls_cert_dates is defined and valkey_tls_cert_dates.rc is defined and valkey_tls_cert_dates.rc == 0 %}
+- **Not Before:** {{ valkey_tls_cert_dates.stdout | regex_search('notBefore=(.+)', '\\1') | first | default('Unknown') }}
+- **Not After:** {{ valkey_tls_cert_dates.stdout | regex_search('notAfter=(.+)', '\\1') | first | default('Unknown') }}
+- **Expiry Warning:** {{ 'EXPIRES WITHIN 30 DAYS' if (valkey_tls_cert_expiry_check is defined and valkey_tls_cert_expiry_check.rc is defined and valkey_tls_cert_expiry_check.rc == 1) else 'OK' }}
+{% endif %}
+
+#### Subject Alternative Names
+
+```
+{{ valkey_tls_cert_sans.stdout | default('Not available') if (valkey_tls_cert_sans is defined and valkey_tls_cert_sans.rc is defined and valkey_tls_cert_sans.rc == 0) else 'Not available' }}
+```
+
+- **inventory_hostname ({{ inventory_hostname }}) in SANs:** {{ 'YES' if (valkey_tls_san_hostname_match is defined and valkey_tls_san_hostname_match) else 'NO' }}
+- **ansible_host ({{ ansible_host }}) in SANs:** {{ 'YES' if (valkey_tls_san_ip_match is defined and valkey_tls_san_ip_match) else 'NO' }}
+
+#### Validation
+
+- **Cert-Key Match:** {{ 'YES' if (valkey_tls_cert_key_match is defined and valkey_tls_cert_key_match) else ('NOT CHECKED' if not (valkey_tls_key_stat is defined and valkey_tls_key_stat.stat is defined and valkey_tls_key_stat.stat.exists) else 'FAILED') }}
+- **Chain Valid:** {{ 'YES' if (valkey_tls_chain_valid is defined and valkey_tls_chain_valid.rc is defined and valkey_tls_chain_valid.rc == 0) else ('NOT CHECKED' if not (valkey_tls_ca_stat is defined and valkey_tls_ca_stat.stat is defined and valkey_tls_ca_stat.stat.exists) else 'FAILED') }}
+
+{% endif %}
+
+{% if valkey_tls_ca_stat is defined and valkey_tls_ca_stat.stat is defined and valkey_tls_ca_stat.stat.exists %}
+#### CA Bundle Validity
+
+{% if valkey_tls_ca_dates is defined and valkey_tls_ca_dates.rc is defined and valkey_tls_ca_dates.rc == 0 %}
+- **Not Before:** {{ valkey_tls_ca_dates.stdout | regex_search('notBefore=(.+)', '\\1') | first | default('Unknown') }}
+- **Not After:** {{ valkey_tls_ca_dates.stdout | regex_search('notAfter=(.+)', '\\1') | first | default('Unknown') }}
+- **Expiry Warning:** {{ 'EXPIRES WITHIN 30 DAYS' if (valkey_tls_ca_expiry_check is defined and valkey_tls_ca_expiry_check.rc is defined and valkey_tls_ca_expiry_check.rc == 1) else 'OK' }}
+{% endif %}
+
+{% endif %}
+
+#### Live TLS Handshake
+
+{% if valkey_tls_handshake is defined and valkey_tls_handshake.rc is defined %}
+Tested against: `{{ inventory_hostname }}:{{ valkey_port }}`
+
+```
+{{ valkey_tls_handshake.stdout | default('No output') }}
+```
+{% else %}
+Not tested (CA missing)
+{% endif %}
+
+{% else %}
+- **TLS Status:** DISABLED
+{% endif %}
+
+---
+
+## Valkey User Auth Tests
+
+**The following users were found:**
+
+{% if valkey_users is defined and valkey_users | length > 0 %}
+{% for valkey in valkey_users %}
+### User: {{ valkey.user | default('Unknown') }}
+- **Enabled:** {{ valkey.enabled | default(false) }}
+{% endfor %}
+
+### User Connection Test Results:
+- **admin:** {{ 'PASSED ✓' if ((valkey_ping.rc | default(-1)) == 0 and 'PONG' in (valkey_ping.stdout | default(''))) else 'FAILED ✗' }}
+- **itential:** {{ 'PASSED ✓' if ((valkey_itential_user_ping.rc | default(-1)) == 0 and 'PONG' in (valkey_itential_user_ping.stdout | default(''))) else 'FAILED ✗' }}
+{% if valkey_has_replicas | default(false) | bool %}
+- **repluser:** {{ 'PASSED ✓' if ((valkey_repl_user_ping.rc | default(-1)) == 0 and 'PONG' in (valkey_repl_user_ping.stdout | default(''))) else 'FAILED ✗' }}
+{% endif %}
+{% if valkey_has_sentinels | default(false) | bool %}
+- **sentineluser:** {{ 'PASSED ✓' if ((valkey_sentineluser_user_ping.rc | default(-1)) == 0 and 'PONG' in (valkey_sentineluser_user_ping.stdout | default(''))) else 'FAILED ✗' }}
+{% endif %}
+{% if valkey_monitor_user_enabled | default(false) | bool %}
+- **monitor:** {{ 'PASSED ✓' if ((valkey_monitor_user_ping.rc | default(-1)) == 0 and 'PONG' in (valkey_monitor_user_ping.stdout | default(''))) else 'FAILED ✗' }}
+{% endif %}
+{% else %}
+No Valkey users were found!
+{% endif %}
+
+---
+
+## Recent Log Entries (Last 50 lines)
+
+```
+{{ valkey_logs.stdout | default('Log entries not available') if valkey_logs is defined else 'Log entries not available' }}
+```
+
+{% if sentinel_service_status is defined and sentinel_service_status.status is defined %}
+---
+
+## Sentinel Service Status
+
+- **Service Name:** {{ sentinel_service_status.name | default('Unknown') }}
+- **Service State:** {{ sentinel_service_status.status.ActiveState | default('Unknown') }}
+- **Service SubState:** {{ sentinel_service_status.status.SubState | default('Unknown') }}
+- **Service Enabled:** {{ sentinel_service_status.status.UnitFileState | default('Unknown') }}
+
+**Process Running:** {{ 'YES ✓' if (sentinel_process is defined and sentinel_process.rc == 0) else 'NO' }}
+
+{% if sentinel_process is defined and sentinel_process.rc == 0 %}
+**Process Details:**
+```
+{{ sentinel_process.stdout | default('N/A') }}
+```
+{% endif %}
+
+---
+
+## Sentinel Connectivity
+
+- **Sentinel Port:** {{ valkey_sentinel_port | default('26379') }}
+- **Ping Response:** {{ sentinel_ping.stdout | default('FAILED') if sentinel_ping is defined else 'FAILED' }}
+- **Connection Status:** {{ 'SUCCESS ✓' if (sentinel_ping is defined and sentinel_ping.rc == 0) else 'FAILED' }}
+
+**Listening Ports:**
+```
+{{ sentinel_ports.stdout | default('Could not determine') if sentinel_ports is defined else 'Could not determine' }}
+```
+
+---
+
+## Sentinel Metrics (from INFO)
+
+{% if sentinel_metrics is defined %}
+- **Valkey Version:** {{ sentinel_metrics.version | default(['N/A'], true) | first }}
+- **Valkey Mode:** {{ sentinel_metrics.mode | default(['N/A'], true) | first }}
+- **Monitored Masters:** {{ sentinel_metrics.masters | default(['N/A'], true) | first }}
+{% else %}
+Sentinel INFO not available
+{% endif %}
+
+---
+
+## Sentinel Master
+
+{% if itential_master is defined and itential_master.name is defined and itential_master.name == "itentialmaster" %}
+**Number of Masters:** 1
+**Master Name:** {{ itential_master.name }}
+
+{% if monitored_master_details is defined %}
+### Master Details:
+- **IP:** {{ monitored_master_details.ip | default('N/A') }}
+- **Connected Slaves:** {{ monitored_master_details["num-slaves"] | default('N/A') }}
+- **Port:** {{ monitored_master_details.port | default('N/A') }}
+- **Quorum:** {{ monitored_master_details.quorum | default('N/A') }}
+- **Down After (ms):** {{ monitored_master_details["down-after-milliseconds"] | default('N/A') }}
+- **Failover Timeout:** {{ monitored_master_details["failover-timeout"] | default('N/A') }}
+- **Parallel Syncs:** {{ monitored_master_details["parallel-syncs"] | default('N/A') }}
+{% endif %}
+{% else %}
+No masters are being monitored
+{% endif %}
+
+---
+
+## Sentinel Quorum Status
+
+{% if quorum_check_details is defined and quorum_check_details %}
+- **Master:** {{ itential_master.name | default('Unknown') if itential_master is defined else 'Unknown' }}
+- **Status:** {{ quorum_check_details }}
+{% else %}
+No quorum was found!
+{% endif %}
+
+---
+
+## Sentinel Known Sentinels
+
+**This Sentinel is aware of the following other Sentinels:**
+
+{% if known_sentinel_details is defined and known_sentinel_details | length > 0 %}
+{% for sentinel in known_sentinel_details %}
+### Sentinel: {{ sentinel.name | default('N/A') }}
+- **IP:** {{ sentinel.ip | default('N/A') }}
+- **Runid:** {{ sentinel.runid | default('N/A') }}
+- **Port:** {{ sentinel.port | default('N/A') }}
+- **Flags:** {{ sentinel.flags | default('N/A') }}
+
+{% endfor %}
+{% else %}
+No other Sentinels were found!
+{% endif %}
+
+---
+
+## Sentinel Known Replicas
+
+**This Sentinel is aware of the following Replicas:**
+
+{% if known_replica_details is defined and known_replica_details | length > 0 %}
+{% for replica in known_replica_details %}
+### Replica: {{ replica.name | default('N/A') }}
+- **Master:** {{ replica["master-host"] | default('N/A') }}:{{ replica["master-port"] | default('N/A') }}
+- **Master Connectivity:** {{ replica["master-link-status"] | default('N/A') }}
+- **Replica Role:** {{ replica["role-reported"] | default('N/A') }}
+- **Flags:** {{ replica.flags | default('N/A') }}
+
+{% endfor %}
+{% else %}
+No other Replicas were found!
+{% endif %}
+
+---
+
+## Sentinel Configuration File
+
+- **Config File Exists:** {{ sentinel_conf_file.stat.exists if (sentinel_conf_file is defined and sentinel_conf_file.stat is defined) else 'Unknown' }}
+{% if sentinel_conf_file is defined and sentinel_conf_file.stat is defined and sentinel_conf_file.stat.exists %}
+- **Config File Path:** `/etc/valkey/sentinel.conf`
+- **Permissions:** {{ sentinel_conf_permissions.stdout | default('Unknown') if sentinel_conf_permissions is defined else 'Unknown' }}
+{% endif %}
+
+- **Systemd Unit File:** {{ sentinel_systemd_file.stat.exists if (sentinel_systemd_file is defined and sentinel_systemd_file.stat is defined) else 'Unknown' }}
+{% if sentinel_systemd_file is defined and sentinel_systemd_file.stat is defined and sentinel_systemd_file.stat.exists %}
+- **Unit File Path:** `/etc/systemd/system/valkey-sentinel.service`
+{% endif %}
+
+---
+
+## Sentinel User Auth Tests
+
+**The following users were found:**
+
+{% if sentinel_users is defined and sentinel_users | length > 0 %}
+{% for sentinel in sentinel_users %}
+### User: {{ sentinel.user | default('Unknown') }}
+- **Enabled:** {{ sentinel.enabled | default(false) }}
+{% endfor %}
+
+### Connection Test Results:
+- **admin:** {{ 'PASSED ✓' if ((sentinel_ping.rc | default(-1)) == 0 and 'PONG' in (sentinel_ping.stdout | default(''))) else 'FAILED ✗' }}
+- **sentineluser:** {{ 'PASSED ✓' if ((sentinel_user_ping.rc | default(-1)) == 0 and 'PONG' in (sentinel_user_ping.stdout | default(''))) else 'FAILED ✗' }}
+- **monitor:** {{ 'PASSED ✓' if ((sentinel_monitor_user_ping.rc | default(-1)) == 0 and 'PONG' in (sentinel_monitor_user_ping.stdout | default(''))) else 'FAILED ✗' }}
+{% else %}
+No Sentinel users were found!
+{% endif %}
+
+---
+
+## Sentinel Recent Log Entries (Last 50 lines)
+
+```
+{{ sentinel_logs.stdout | default('Log entries not available') if sentinel_logs is defined else 'Log entries not available' }}
+```
+
+{% endif %}
+
+---
+
+## Validation Summary
+
+{% if sentinel_service_status is defined and sentinel_service_status.status is defined
+    and (valkey_service_status is not defined or valkey_service_status.status is not defined) %}
+**Overall Status:** {{ 'PASSED ✓' if (sentinel_ping is defined and sentinel_ping.rc == 0 and sentinel_process is defined and sentinel_process.rc == 0) else 'FAILED' }}
+{% else %}
+**Overall Status:** {{ 'PASSED ✓' if (valkey_ping is defined and valkey_ping.rc == 0 and valkey_process is defined and valkey_process.rc == 0) else 'FAILED' }}
+{% endif %}
+
+### Checks:
+
+{% if valkey_service_status is defined and valkey_service_status.status is defined %}
+- **Valkey Service Exists:** YES ✓
+- **Valkey Service Active:** {{ valkey_service_status.status.ActiveState | default('unknown') | upper }} {{ '✓' if valkey_service_status.status.ActiveState == 'active' else '✗' }}
+{% else %}
+- **Valkey Service Exists:** NO ✗
+{% endif %}
+- **Valkey Process Running:** {{ 'YES' if (valkey_process is defined and valkey_process.rc == 0) else 'NO' }} {{ '✓' if (valkey_process is defined and valkey_process.rc == 0) else '✗' }}
+- **Valkey Responding:** {{ 'YES' if (valkey_ping is defined and valkey_ping.rc == 0) else 'NO' }} {{ '✓' if (valkey_ping is defined and valkey_ping.rc == 0) else '✗' }}
+- **Valkey Config File Present:** {{ 'YES' if (valkey_conf_file is defined and valkey_conf_file.stat is defined and valkey_conf_file.stat.exists) else 'NO' }} {{ '✓' if (valkey_conf_file is defined and valkey_conf_file.stat is defined and valkey_conf_file.stat.exists) else '✗' }}
+{% if sentinel_service_status is defined and sentinel_service_status.status is defined %}
+- **Sentinel Service Exists:** YES ✓
+- **Sentinel Service Active:** {{ sentinel_service_status.status.ActiveState | default('unknown') | upper }} {{ '✓' if sentinel_service_status.status.ActiveState == 'active' else '✗' }}
+- **Sentinel Process Running:** {{ 'YES' if (sentinel_process is defined and sentinel_process.rc == 0) else 'NO' }} {{ '✓' if (sentinel_process is defined and sentinel_process.rc == 0) else '✗' }}
+- **Sentinel Responding:** {{ 'YES' if (sentinel_ping is defined and sentinel_ping.rc == 0) else 'NO' }} {{ '✓' if (sentinel_ping is defined and sentinel_ping.rc == 0) else '✗' }}
+- **Sentinel Config File Present:** {{ 'YES' if (sentinel_conf_file is defined and sentinel_conf_file.stat is defined and sentinel_conf_file.stat.exists) else 'NO' }} {{ '✓' if (sentinel_conf_file is defined and sentinel_conf_file.stat is defined and sentinel_conf_file.stat.exists) else '✗' }}
+- **Sentinel Monitoring:** {{ ([itential_master.name] if itential_master is defined and itential_master.name is defined else []) | length }} master(s) {{ '✓' if (itential_master is defined and itential_master.name is defined) else '✗' }}
+- **Sentinel Quorum:** {{ 'OK' if (quorum_check_details is defined and 'OK' in quorum_check_details) else 'FAILED' }} {{ '✓' if (quorum_check_details is defined and 'OK' in quorum_check_details) else '✗' }}
+{% else %}
+- **Sentinel Service:** NOT RUNNING OR NOT DETECTED
+{% endif %}
+
+---
+
+**End of Report**

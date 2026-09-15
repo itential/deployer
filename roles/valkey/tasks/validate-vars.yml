@@ -1,0 +1,96 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+- name: Validate and set installation variables
+  tags: always
+  block:
+    - name: Validate an installation variable is set
+      ansible.builtin.assert:
+        that: >
+          (platform_release is defined) or
+          (valkey_packages is defined)
+        fail_msg: "platform_release OR valkey_packages must be defined"
+
+    - name: Validate valkey_packages is set when not using platform_release
+      ansible.builtin.assert:
+        that: valkey_packages is defined
+        fail_msg: >-
+          valkey_packages must be defined
+          when platform_release is not defined
+      when: platform_release is not defined
+
+    - name: Validate directories are not overridden
+      ansible.builtin.assert:
+        that:
+          - valkey_bin_dir == valkey_bin_dir_default
+          - valkey_conf_dir == valkey_conf_dir_default
+          - valkey_data_dir == valkey_data_dir_default
+          - valkey_log_dir == valkey_log_dir_default
+        fail_msg: >-
+          Default directories cannot be overridden. Valkey is only installed via the
+          native OS package repositories, which expect standard paths and are not relocatable.
+
+    - name: Set installation variables when using Itential Platform release defaults
+      when: platform_release is defined
+      block:
+        - name: Load Itential Platform release default variables
+          ansible.builtin.include_vars:
+            file: "{{ item }}"
+          with_first_found:
+            - "platform-release-{{ platform_release }}.yml"
+            - "platform-release-{{ platform_release | string | split('.') | first }}.yml"
+            - "platform-release-undefined.yml"
+
+        - name: Check for valid Valkey release
+          ansible.builtin.assert:
+            that: valkey_invalid_platform_release is not defined
+            fail_msg: >-
+              Deployer does not support installing Valkey
+              for Itential Platform release {{ platform_release }}
+
+        - name: Check for valid OS for Valkey installation
+          ansible.builtin.assert:
+            that:
+              - ansible_os_family == 'RedHat'
+              - ansible_distribution_major_version in ['9', '2023']
+            fail_msg: >-
+              Deployer does not support installing Valkey on
+              {{ ansible_distribution }} {{ ansible_distribution_major_version | default('') }}.
+              Valkey is only supported on RHEL/Rocky/AlmaLinux 9 and Amazon Linux 2023, installed
+              via the native OS package repositories. Use the redis role instead on EL8 or other
+              platforms.
+
+        - name: Set valkey_packages to the default value when not defined in inventory
+          ansible.builtin.set_fact:
+            valkey_packages: "{{ valkey_packages_default[ansible_distribution_major_version] }}"
+          when: valkey_packages is not defined
+
+    - name: Print Valkey installation details
+      ansible.builtin.debug:
+        msg: "Valkey packages: {{ valkey_packages }}"
+      when: not offline_install_enabled | bool
+
+    - name: Validate offline install directory for the target OS
+      when: offline_install_enabled | bool
+      block:
+        - name: Stat offline packages directory on the control node
+          ansible.builtin.stat:
+            path: "{{ valkey_offline_control_node_root }}"
+          register: valkey_offline_dir_stat
+          delegate_to: localhost
+          become: false
+
+        - name: Assert offline packages directory exists on the control node
+          ansible.builtin.assert:
+            that:
+              - valkey_offline_dir_stat.stat.exists
+              - valkey_offline_dir_stat.stat.isdir
+            fail_msg: >-
+              Offline packages directory {{ valkey_offline_control_node_root }} does not exist.
+              Ensure offline packages have been downloaded for
+              {{ ansible_distribution }} {{ ansible_distribution_major_version }}.
+
+    - name: Print Valkey installation details (offline)
+      ansible.builtin.debug:
+        msg: "Valkey offline install using files from {{ valkey_offline_control_node_root }}"
+      when: offline_install_enabled | bool

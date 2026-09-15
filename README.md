@@ -31,8 +31,9 @@
 6. [Component Guides](#component-guides)
     1. [MongoDB](#mongodb)
     2. [Redis](#redis)
-    3. [Itential Platform](#itential-platform)
-    4. [Itential Gateway](#itential-gateway)
+    3. [Valkey](#valkey)
+    4. [Itential Platform](#itential-platform)
+    5. [Itential Gateway](#itential-gateway)
 7. [Patching Itential Platform and IAG](#patching-itential-platform-and-iag)
 8. [Using Internal YUM Repositories](#using-internal-yum-repositories)
 9. [Running the Deployer in Offline Mode](#running-the-deployer-in-offline-mode)
@@ -45,7 +46,7 @@ At its most basic, the following must be installed.
 
 - Itential Platform
 - Itential Automation Gateway (IAG)
-- Redis
+- Redis (or Valkey as a Remi-free alternative, on EL9 or Amazon Linux 2023)
 - MongoDB
 
 Optionally, one can include Hashicorp Vault for secrets management, and Prometheus & Grafana for
@@ -106,7 +107,7 @@ The ideal HA2 environment will have 9 VMs:
 
 - 2 VMs hosting Itential Platform.
 - 3 VMs hosting MongoDB configured as a replica set.
-- 3 VMs hosting Redis configured as a highly available replica set using Redis Sentinel.
+- 3 VMs hosting Redis (or Valkey, on EL9/Amazon Linux 2023 hosts) configured as a highly available replica set using Sentinel.
 - 1 VM hosting IAG.
 
 Itential recommends applying sound security principles to ALL environments. This would include
@@ -137,6 +138,12 @@ slightly different than MongoDB. Redis will consist of 4 data-bearing members, 2
 members in the primary data center, 2 data-bearing members in the secondary data center. Unlike
 MongoDB, Redis HA requires Redis Sentinel. These must be distributed in 3 data centers to preserve
 a majority of voting members (3) in the event of a data center loss.
+
+Valkey is a protocol-compatible, drop-in alternative to Redis and follows the identical HA mechanics
+described above: same replica/Sentinel topology, same quorum math, same data center distribution.
+It is currently only supported on EL9 and Amazon Linux 2023 hosts, installed via the native OS
+package repositories (no Remi, no source install) — see the [Valkey Guide](docs/valkey_guide.md)
+for details.
 
 Itential recommends applying sound security principles to ALL environments. In the ASA, this would
 include configuring all components to use authentication and use SSL when communicating with
@@ -239,6 +246,7 @@ the Deployer will either install the required repository or download the package
 | Redis | <https://dl.fedoraproject.org> | TCP | EPEL YUM RPMs<br>When installing Redis from the Remi repository |
 | Redis | <https://github.com> | TCP | Redis source packages <br>When installing Redis from source |
 | Redis | <https://codeload.github.com> | TCP | Redis source packages<br>When installing Redis from source |
+| Valkey | <https://mirrors.rockylinux.org> | TCP | Rocky/AlmaLinux 9 AppStream mirror for the Valkey RPM. RHEL proper resolves AppStream through its own subscription-manager CDN instead of a fixed public URL; Amazon Linux 2023 ships Valkey in its own preconfigured core repository. Neither of those is checked by the `verify` playbook. |
 
 If internal YUM repositories are used, refer to the
 [Using Internal YUM Repositories](#using-internal-yum-repositories) section.
@@ -257,7 +265,7 @@ ansible-playbook itential.deployer.verify -i <inventory>
 ```
 
 This checks each component's target hosts (`gateway`, `platform*`, `mongodb*`, `redis_master`/
-`redis_replica`) against the rows in the table above. See
+`redis_replica`, `valkey_master`/`valkey_replica`) against the rows in the table above. See
 [Confirm Requirements](#confirm-requirements) for details.
 
 ### Ports and Networking
@@ -275,6 +283,8 @@ network traffic flows need to be allowed.
 | Itential Platform | MongoDB | 27017 | TCP | Itential Platform connections to MongoDB |
 | Itential Platform | Redis | 6379 | TCP | Itential Platform connections to Redis |
 | Itential Platform | Redis | 26379 | TCP | Itential Platform connections to Redis Sentinel |
+| Itential Platform | Valkey | 6379 | TCP | Itential Platform connections to Valkey |
+| Itential Platform | Valkey | 26379 | TCP | Itential Platform connections to Valkey Sentinel |
 | Itential Platform | IAG | 8083 | TCP | Itential Platform connections to IAG over HTTP |
 | Itential Platform | IAG | 8443 | TCP | Itential Platform connections to IAG over HTTPS |
 | Itential Platform | Vault | 8200 | TCP | Itential Platform connections to Hashicorp Vault |
@@ -284,6 +294,8 @@ network traffic flows need to be allowed.
 | MongoDB | MongoDB | 27017 | TCP | MongoDB replication |
 | Redis | Redis | 6379 | TCP | Redis replication |
 | Redis | Redis | 26379 | TCP | Redis Sentinel for HA |
+| Valkey | Valkey | 6379 | TCP | Valkey replication |
+| Valkey | Valkey | 26379 | TCP | Valkey Sentinel for HA |
 
 Notes
 
@@ -303,6 +315,7 @@ can be used and what their purpose is.
 | IAG webserver | Enables HTTPS communications with the IAG webserver. |
 | MongoDB | Enables secure communications with the MongoDB server. Also used for intra-node mongo replication. |
 | Redis | Enables secure communications with the Redis server. Also used for intra-node redis replication. |
+| Valkey | Enables secure communications with the Valkey server. Also used for intra-node valkey replication. |
 | LDAP | Enables secure communications with LDAP server. |
 
 ### Passwords
@@ -329,6 +342,17 @@ these variables just define the variable in the deployer host file.
 | admin | sentineladmin | redis_user_sentineladmin_password | Full root access to Redis Sentinel. |
 | sentineluser | sentineluser | redis_user_sentineluser_password | Has access to the minimum set of commands to perform sentinel monitoring: multi, slaveof, ping, exec, subscribe, config.rewrite, role, publish, info, client.setname, client.kill, script.kill. |
 | monitor | monitor | redis_user_monitor_password | Read-only access to gather metric and cluster data from Redis and Sentinel. Enabled via `redis_monitor_user_enabled`. |
+
+#### Valkey Accounts
+
+| User Account | Default Password | Variable Name | Description |
+| :----------- | :--------------- | :------------ | :---------- |
+| admin | admin | valkey_user_admin_password | Has full root access to the Valkey database, all channels, all keys, all commands. |
+| itential | itential | valkey_user_itential_password | Has full access to the Valkey database, all channels, all keys, EXCEPT the following commands: asking, cluster, readonly, readwrite, bgrewriteaof, bgsave, failover, flushall, flushdb, psync, replconf, replicaof, save, shutdown, sync. |
+| repluser | repluser | valkey_user_repluser_password | Has access to the minimum set of commands to perform replication: psync, replconf, ping. |
+| admin | sentineladmin | valkey_user_sentineladmin_password | Full root access to Valkey Sentinel. |
+| sentineluser | sentineluser | valkey_user_sentineluser_password | Has access to the minimum set of commands to perform sentinel monitoring: multi, slaveof, ping, exec, subscribe, config.rewrite, role, publish, info, client.setname, client.kill, script.kill. |
+| monitor | monitor | valkey_user_monitor_password | Read-only access to gather metric and cluster data from Valkey and Sentinel. Enabled via `valkey_monitor_user_enabled`. |
 
 ### Obtaining the Itential Binaries
 
@@ -410,6 +434,9 @@ ansible-playbook -i <path-to-inventory> itential.deployer.verify
 
 # Verify Redis
 ansible-playbook -i <path-to-inventory> itential.deployer.verify_redis
+
+# Verify Valkey
+ansible-playbook -i <path-to-inventory> itential.deployer.verify_valkey
 
 # Verify MongoDB
 ansible-playbook -i <path-to-inventory> itential.deployer.verify_mongodb
@@ -650,6 +677,9 @@ ansible-playbook -i <path-to-inventory> itential.deployer.certify
 # Certify Redis
 ansible-playbook -i <path-to-inventory> itential.deployer.certify_redis
 
+# Certify Valkey
+ansible-playbook -i <path-to-inventory> itential.deployer.certify_valkey
+
 # Certify MongoDB
 ansible-playbook -i <path-to-inventory> itential.deployer.certify_mongodb
 
@@ -723,7 +753,7 @@ $ sudo systemctl status automation-gateway
            └─94844 /opt/automation-gateway/venv/bin/python3 /opt/automation-gateway/venv/bin/automation-gateway --properties-file=/etc/automation-gateway/propert>
 ```
 
-#### MongoDB and Redis
+#### MongoDB, Redis, and Valkey
 
 From the command line of each dependency server, use the `sudo systemctl status <service>` command
 to confirm that the relevant service is running. When executing the command, replace `<service>`
@@ -731,6 +761,7 @@ with one of the following:
 
 - **MongoDB**: `mongod`
 - **Redis**: `redis`
+- **Valkey**: `valkey`
 
 The output should look similar to the following examples.
 
@@ -769,6 +800,24 @@ $ sudo systemctl status redis
              └─15723 "/usr/bin/redis-server 127.0.0.1:6379"
 ```
 
+</br>
+
+#### Example Output: Valkey Status
+
+```bash
+$ sudo systemctl status valkey
+● valkey.service - Valkey persistent key-value database
+     Loaded: loaded (/usr/lib/systemd/system/valkey.service; enabled; preset: disabled)
+     Active: active (running) since Thu 2026-09-11 09:15:00 UTC; 20h ago
+   Main PID: 15723 (valkey-server)
+     Status: "Ready to accept connections"
+      Tasks: 5 (limit: 22862)
+     Memory: 9.7M
+        CPU: 13.409s
+     CGroup: /system.slice/valkey.service
+             └─15723 "/usr/bin/valkey-server 127.0.0.1:6379"
+```
+
 ## Component Guides
 
 In addition to the `itential.deployer.site` playbook, there are playbooks for each component.
@@ -784,6 +833,10 @@ corresponding variables are detailed in the following guides.
 ### Redis
 
 [Redis Guide](docs/redis_guide.md)
+
+### Valkey
+
+[Valkey Guide](docs/valkey_guide.md)
 
 ### Itential Platform
 
@@ -860,3 +913,27 @@ replication process.
 - Redis Sentinel will be included to monitor the Redis cluster and will be colocated with Redis.
 - Redis Sentinel will have an admin user able to perform a Sentinel task.
 - Redis nodes maintain a low latency connection between nodes to avoid replication failures.
+
+### Highly Available Valkey
+
+Valkey is a protocol-compatible fork of Redis and its clustering model is identical: a
+primary/secondary replication topology monitored by Sentinel, with the same failure-detection and
+promotion mechanics described above for Redis. Itential's preferred Valkey cluster assumes the same
+requirements as the preferred Redis cluster:
+
+- Authentication between the replica members is done with users defined in the Valkey config file.
+- Valkey will have an admin user able to perform any operation.
+- Valkey will have an "itential" user that is granted the least amount of privileges required by the
+application.
+- Valkey will have a replication user that is granted the least amount of privileges required by the
+replication process.
+- Initial passwords are intended to be changed.
+- Valkey Sentinel will be included to monitor the Valkey cluster and will be colocated with Valkey.
+- Valkey Sentinel will have an admin user able to perform a Sentinel task.
+- Valkey nodes maintain a low latency connection between nodes to avoid replication failures.
+
+Unlike Redis, Valkey is currently only supported on EL9 and Amazon Linux 2023 hosts, installed
+exclusively via the native OS package repositories — there is no Remi option and no
+source-install fallback for EL8. Valkey's install paths also cannot be customized: the package
+is not relocatable, so customers requiring non-standard install locations must use `roles/redis`
+(source install) instead.

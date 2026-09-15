@@ -3,7 +3,7 @@
 ---
 ### OS
 - name: Install OS packages
-  hosts: platform, platform_secondary, redis, redis_secondary, mongodb, mongodb_arbiter, gateway
+  hosts: platform, platform_secondary, redis, redis_secondary, valkey, valkey_secondary, mongodb, mongodb_arbiter, gateway
   become: true
   roles:
     # Pull in the common vars

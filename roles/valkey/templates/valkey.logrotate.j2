@@ -1,0 +1,35 @@
+# -----------------------------------------------------
+# This file is managed by Ansible.
+# Safe to edit, but if you re-run automation, it may be overwritten.
+#
+# To customize retention, compression, or actions, edit below.
+
+{{ valkey_log_dir }}/valkey.log {
+    # How often to rotate (change to weekly/monthly if desired)
+    daily
+
+    # How many rotations to keep (increase/decrease as needed)
+    rotate 7
+
+    # Enable compression for old logs (can comment to disable)
+    compress
+    delaycompress
+
+    # Don't complain if log is missing or empty
+    missingok
+    notifempty
+
+    # Ensure logrotate runs with the right user/group
+    su {{ valkey_owner }} {{ valkey_group }}
+
+    # File permissions & ownership for new logs
+    create 0640 {{ valkey_owner }} {{ valkey_group }}
+
+    # Safest for Valkey: copy+truncate the active file in place
+    copytruncate
+
+    # Ensures only one rotation at a time if multiple logs exist
+    sharedscripts
+
+    # NOTE: Valkey does NOT reopen logs on HUP. Avoid postrotate/HUP.
+}

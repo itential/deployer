@@ -4,6 +4,9 @@
 - name: Install and configure Redis
   import_playbook: itential.deployer.redis
 
+- name: Install and configure Valkey
+  import_playbook: itential.deployer.valkey
+
 - name: Install and configure MongoDB
   import_playbook: itential.deployer.mongodb
 

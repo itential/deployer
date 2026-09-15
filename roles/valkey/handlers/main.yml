@@ -1,0 +1,25 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+- name: Enable and Start Valkey
+  listen: restart valkey
+  throttle: 1
+  ansible.builtin.systemd:
+    name: valkey
+    enabled: true
+    state: restarted
+    daemon_reload: true
+  when: valkey_is_data_node
+
+- name: Enable and Start Valkey Sentinel
+  throttle: 1
+  ansible.builtin.systemd:
+    name: valkey-sentinel
+    enabled: true
+    state: restarted
+    daemon_reload: true
+  when: valkey_is_sentinel_node
+
+- name: Update Itential release file
+  ansible.builtin.include_tasks:
+    file: update-release-file.yml

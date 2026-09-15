@@ -1,0 +1,24 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+# Default directories
+valkey_bin_dir_default: /usr/bin
+valkey_conf_dir_default: /etc/valkey
+valkey_log_dir_default: /var/log/valkey
+valkey_data_dir_default: /var/lib/valkey
+
+# Default ports
+valkey_port_default: 6379
+valkey_sentinel_port_default: 26379
+
+# Valkey is installed via the native OS package repositories (AppStream on EL9, Amazon Linux
+# 2023's own core repo). Unlike roles/redis there is no third-party repository (Remi, EPEL,
+# upstream source) to check. On Rocky/AlmaLinux this still resolves to a real, checkable public
+# mirror; RHEL proper resolves AppStream through its own subscription-manager CDN instead of a
+# fixed public URL, and Amazon Linux 2023 ships Valkey in its already-preconfigured core repo --
+# neither of those has a separate URL worth checking here.
+valkey_required_repositories:
+  - url: "https://mirrors.rockylinux.org"
+    type: path
+    check_target: "https://mirrors.rockylinux.org/mirrorlist?arch=x86_64&repo=AppStream-9"
+    notes: "Rocky/AlmaLinux 9 AppStream mirror for the Valkey RPM"

@@ -1,0 +1,104 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+- name: Validate variables and set node type facts
+  tags: always
+  block:
+    - name: Include tasks to validate variables
+      ansible.builtin.include_tasks:
+        file: validate-vars.yml
+
+    - name: Set Valkey node type facts
+      ansible.builtin.set_fact:
+        valkey_is_master_node: "{{ 'valkey_master' in group_names }}"
+        valkey_is_replica_node: "{{ 'valkey_replica' in group_names }}"
+        valkey_is_sentinel_node: "{{ 'valkey_sentinel' in group_names }}"
+        valkey_is_data_node: "{{ 'valkey_master' in group_names or 'valkey_replica' in group_names }}"
+        valkey_has_replicas: "{{ groups['valkey_replica'] is defined and groups['valkey_replica'] | length > 0 }}"
+        valkey_has_sentinels: "{{ groups['valkey_sentinel'] is defined and groups['valkey_sentinel'] | length > 0 }}"
+
+- name: Install and configure Valkey
+  notify:
+    - Enable and Start Valkey
+    - Enable and Start Valkey Sentinel
+  block:
+    - name: Install Valkey
+      tags: install_valkey
+      notify: Update Itential release file
+      block:
+        - name: Include common installation tasks
+          ansible.builtin.include_tasks:
+            file: install-common.yml
+
+        - name: Include tasks to install Valkey using repo
+          ansible.builtin.include_tasks:
+            file: install-from-repo.yml
+
+    - name: Configure Valkey TLS
+      ansible.builtin.include_tasks: configure-valkey-tls.yml
+      when:
+        - valkey_tls_enabled | bool
+        - valkey_is_data_node
+      tags:
+        - valkey
+        - valkey_certificates
+        - certificates
+
+    - name: Configure Sentinel TLS
+      ansible.builtin.include_tasks: configure-sentinel-tls.yml
+      when:
+        - valkey_tls_enabled | bool
+        - valkey_is_sentinel_node
+      tags:
+        - valkey
+        - valkey_certificates
+        - certificates
+
+    - name: Configure Valkey/Sentinel
+      tags: configure_valkey
+      block:
+        - name: Include tasks to configure Valkey
+          ansible.builtin.include_tasks:
+            file: configure-valkey.yml
+          when: valkey_is_data_node
+
+        - name: Include tasks to configure Sentinel
+          ansible.builtin.include_tasks:
+            file: configure-sentinel.yml
+          when: valkey_is_sentinel_node
+
+- name: Ensure Valkey is running
+  tags: always
+  when: valkey_is_data_node
+  block:
+    - name: Flush all handlers
+      ansible.builtin.meta: flush_handlers
+
+    - name: Start Valkey
+      ansible.builtin.systemd:
+        name: valkey
+        state: started
+
+    - name: Assert that Valkey is running
+      ansible.builtin.systemd:
+        name: valkey
+      register: valkey_status
+      failed_when: valkey_status.status.ActiveState != "active"
+
+- name: Ensure Valkey Sentinel is running
+  tags: always
+  when: valkey_is_sentinel_node
+  block:
+    - name: Flush all handlers
+      ansible.builtin.meta: flush_handlers
+
+    - name: Start Valkey Sentinel
+      ansible.builtin.systemd:
+        name: valkey-sentinel
+        state: started
+
+    - name: Assert that Valkey Sentinel is running
+      ansible.builtin.systemd:
+        name: valkey-sentinel
+      register: valkey_sentinel_status
+      failed_when: valkey_sentinel_status.status.ActiveState != "active"

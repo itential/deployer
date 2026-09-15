@@ -1,0 +1,15 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+# Base directories
+valkey_offline_packages_root: "{{ offline_itential_packages_path }}/{{ platform_release }}/valkey"
+valkey_offline_target_node_root: "{{ offline_target_node_root }}/{{ valkey_offline_packages_root }}"
+valkey_offline_control_node_root: "{{ offline_control_node_root }}/{{ valkey_offline_packages_root }}"
+
+# Target node download directories
+valkey_offline_target_node_rpms_dir: "{{ valkey_offline_target_node_root }}/rpms"
+valkey_offline_target_node_archives_dir: "{{ valkey_offline_target_node_root }}/archives"
+
+# Control node download directories
+valkey_offline_control_node_rpms_dir: "{{ valkey_offline_control_node_root }}/rpms"
+valkey_offline_control_node_archives_dir: "{{ valkey_offline_control_node_root }}/archives"

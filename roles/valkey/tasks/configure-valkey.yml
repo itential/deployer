@@ -1,0 +1,83 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Open Valkey port on FirewallD Public Zone
+  ansible.posix.firewalld:
+    port: "{{ valkey_port }}/tcp"
+    permanent: true
+    state: enabled
+    zone: public
+    immediate: true
+  vars:
+    ansible_python_interpreter: "{{ '/usr/libexec/platform-python' if (ansible_os_family == 'RedHat' and ansible_distribution_major_version == '8') else 'auto' }}"
+  when:
+    - ansible_facts.services["firewalld.service"] is defined
+    - ansible_facts.services["firewalld.service"].state == "running"
+    - ansible_facts.services["firewalld.service"].status == "enabled"
+
+- name: Create Valkey systemd file
+  ansible.builtin.template:
+    src: valkey.service.j2
+    dest: /usr/lib/systemd/system/valkey.service
+    owner: root
+    group: root
+    mode: "0644"
+
+# Refer to the valkey defaults and Valkey Guide for an explanation of the replica priority
+- name: Calculate replica priority
+  ansible.builtin.set_fact:
+    valkey_replica_priority_final: >-
+      {%- if valkey_replica_priority != 'auto' -%}
+        {{ valkey_replica_priority }}
+      {%- elif valkey_is_master_node -%}
+        10
+      {%- elif valkey_is_replica_node -%}
+        {{ 50 + (groups['valkey_replica'].index(inventory_hostname) * 50) }}
+      {%- else -%}
+        100
+      {%- endif -%}
+
+- name: Validate replica priority
+  ansible.builtin.assert:
+    that:
+      - valkey_replica_priority_final | int >= 0
+      - valkey_replica_priority_final | int <= 255
+    fail_msg: "valkey_replica_priority must be between 0-255, got {{ valkey_replica_priority_final }}"
+
+- name: Calculate Valkey maxmemory automatically
+  ansible.builtin.set_fact:
+    valkey_maxmemory_bytes: >-
+      {{
+        (
+          [
+            valkey_maxmemory_min_mb | int,
+            (
+              (ansible_facts.memtotal_mb | int)
+              * (valkey_maxmemory_ratio | float)
+            ) | int
+          ] | max
+        ) * 1024 * 1024
+      }}
+  when: valkey_maxmemory_bytes == "auto"
+  tags: configure_valkey
+
+- name: Use template to generate valkey.conf
+  ansible.builtin.template:
+    src: valkey.conf.j2
+    dest: "{{ valkey_conf_file }}"
+    owner: "{{ valkey_owner }}"
+    group: "{{ valkey_group }}"
+    mode: "0644"
+    backup: true
+  tags: configure_valkey
+
+- name: Deploy logrotate config for Valkey
+  ansible.builtin.template:
+    src: valkey.logrotate.j2
+    dest: /etc/logrotate.d/valkey
+    owner: root
+    group: root
+    mode: "0644"

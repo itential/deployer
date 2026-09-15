@@ -1,0 +1,17 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+- name: Download Valkey packages
+  hosts: valkey
+  become: true
+  vars:
+    offline_install_enabled: false
+  roles:
+    - role: itential.deployer.common
+    - role: itential.deployer.offline
+  tasks:
+    - name: Download Valkey packages  # noqa run-once
+      ansible.builtin.import_role:
+        name: itential.deployer.valkey
+        tasks_from: download-packages
+      run_once: true

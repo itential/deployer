@@ -1,0 +1,94 @@
+# Copyright (c) 2024, Itential, Inc
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
+---
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Open Sentinel port on FirewallD Public Zone
+  ansible.posix.firewalld:
+    port: "{{ valkey_sentinel_port }}/tcp"
+    permanent: true
+    state: enabled
+    zone: public
+    immediate: true
+  vars:
+    ansible_python_interpreter: "{{ '/usr/libexec/platform-python' if (ansible_os_family == 'RedHat' and ansible_distribution_major_version == '8') else 'auto' }}"
+  when:
+    - ansible_facts.services["firewalld.service"] is defined
+    - ansible_facts.services["firewalld.service"].state == "running"
+    - ansible_facts.services["firewalld.service"].status == "enabled"
+
+- name: Create Valkey Sentinel data directory
+  ansible.builtin.file:
+    state: directory
+    path: "{{ valkey_data_dir }}/sentinel"
+    owner: "{{ valkey_owner }}"
+    group: "{{ valkey_group }}"
+    mode: "0755"
+
+- name: Create Valkey Sentinel systemd file
+  ansible.builtin.template:
+    src: valkey-sentinel.service.j2
+    dest: /usr/lib/systemd/system/valkey-sentinel.service
+    owner: root
+    group: root
+    mode: "0644"
+
+# Sentinel quorum configuration
+# - If valkey_sentinel_quorum is not 'auto', use the explicit value
+# - Otherwise, calculate majority quorum: ceil(sentinel_count / 2)
+#   This ensures quorum is "more than half" of sentinels
+#   Examples: 1→1, 2→1, 3→2, 4→2, 5→3, 6→3, 7→4
+# - Defaults to 1 if valkey_sentinel group is undefined or empty
+- name: Set sentinel quorum
+  ansible.builtin.set_fact:
+    valkey_sentinel_quorum_final: >-
+      {{
+        valkey_sentinel_quorum if valkey_sentinel_quorum != 'auto'
+        else ((groups['valkey_sentinel'] | default([]) | length / 2) | round(0, 'ceil') | int) | default(1)
+      }}
+
+- name: Validate sentinel quorum
+  ansible.builtin.assert:
+    that:
+      - valkey_sentinel_quorum_final | int >= 1
+      - valkey_sentinel_quorum_final | int <= (groups['valkey_sentinel'] | default([]) | length)
+      - groups['valkey_sentinel'] | default([]) | length >= 3 or valkey_sentinel_quorum != 'auto'
+    fail_msg: "Invalid quorum {{ valkey_sentinel_quorum_final }} for {{ groups['valkey_sentinel'] | default([]) | length }} sentinels (min 3 recommended)"
+    success_msg: "Sentinel quorum: {{ valkey_sentinel_quorum_final }}/{{ groups['valkey_sentinel'] | default([]) | length }}"
+  run_once: true
+
+- name: Display sentinel quorum configuration
+  ansible.builtin.debug:
+    msg: "Using sentinel quorum: {{ valkey_sentinel_quorum_final }} out of {{ groups['valkey_sentinel'] | default([]) | length }} sentinels"
+  run_once: true
+
+- name: Check if sentinel is running
+  ansible.builtin.systemd:
+    name: valkey-sentinel
+  register: valkey_sentinel_service
+  failed_when: false
+
+- name: Stop sentinel for config update
+  ansible.builtin.systemd:
+    name: valkey-sentinel
+    state: stopped
+  when: valkey_sentinel_service.status.ActiveState == 'active'
+
+- name: Deploy sentinel.conf
+  ansible.builtin.template:
+    src: sentinel.conf.j2
+    dest: "{{ valkey_sentinel_conf_file }}"
+    owner: "{{ valkey_owner }}"
+    group: "{{ valkey_group }}"
+    mode: "0640"
+    backup: true
+  notify: Enable and Start Valkey Sentinel
+
+- name: Deploy logrotate config for Valkey Sentinel
+  ansible.builtin.template:
+    src: valkey-sentinel.logrotate.j2
+    dest: /etc/logrotate.d/valkey-sentinel
+    owner: root
+    group: root
+    mode: '0644'
