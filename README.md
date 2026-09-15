@@ -46,7 +46,7 @@ At its most basic, the following must be installed.
 
 - Itential Platform
 - Itential Automation Gateway (IAG)
-- Redis (or Valkey as a Remi-free, EL9-only alternative)
+- Redis (or Valkey as a Remi-free alternative, on EL9 or Amazon Linux 2023)
 - MongoDB
 
 Optionally, one can include Hashicorp Vault for secrets management, and Prometheus & Grafana for
@@ -107,7 +107,7 @@ The ideal HA2 environment will have 9 VMs:
 
 - 2 VMs hosting Itential Platform.
 - 3 VMs hosting MongoDB configured as a replica set.
-- 3 VMs hosting Redis (or Valkey, on EL9-only hosts) configured as a highly available replica set using Sentinel.
+- 3 VMs hosting Redis (or Valkey, on EL9/Amazon Linux 2023 hosts) configured as a highly available replica set using Sentinel.
 - 1 VM hosting IAG.
 
 Itential recommends applying sound security principles to ALL environments. This would include
@@ -141,8 +141,9 @@ a majority of voting members (3) in the event of a data center loss.
 
 Valkey is a protocol-compatible, drop-in alternative to Redis and follows the identical HA mechanics
 described above: same replica/Sentinel topology, same quorum math, same data center distribution.
-It is currently only supported on EL9 hosts, installed via the native AppStream package (no Remi, no
-source install) — see the [Valkey Guide](docs/valkey_guide.md) for details.
+It is currently only supported on EL9 and Amazon Linux 2023 hosts, installed via the native OS
+package repositories (no Remi, no source install) — see the [Valkey Guide](docs/valkey_guide.md)
+for details.
 
 Itential recommends applying sound security principles to ALL environments. In the ASA, this would
 include configuring all components to use authentication and use SSL when communicating with
@@ -245,7 +246,7 @@ the Deployer will either install the required repository or download the package
 | Redis | <https://dl.fedoraproject.org> | TCP | EPEL YUM RPMs<br>When installing Redis from the Remi repository |
 | Redis | <https://github.com> | TCP | Redis source packages <br>When installing Redis from source |
 | Redis | <https://codeload.github.com> | TCP | Redis source packages<br>When installing Redis from source |
-| Valkey | n/a | n/a | No additional public repository required — Valkey installs via the native EL9 AppStream package, already part of the base OS's own repository set. |
+| Valkey | <https://mirrors.rockylinux.org> | TCP | Rocky/AlmaLinux 9 AppStream mirror for the Valkey RPM. RHEL proper resolves AppStream through its own subscription-manager CDN instead of a fixed public URL; Amazon Linux 2023 ships Valkey in its own preconfigured core repository. Neither of those is checked by the `verify` playbook. |
 
 If internal YUM repositories are used, refer to the
 [Using Internal YUM Repositories](#using-internal-yum-repositories) section.
@@ -931,5 +932,8 @@ replication process.
 - Valkey Sentinel will have an admin user able to perform a Sentinel task.
 - Valkey nodes maintain a low latency connection between nodes to avoid replication failures.
 
-Unlike Redis, Valkey is currently only supported on EL9 hosts, installed exclusively via the native
-AppStream package — there is no Remi option and no source-install fallback for EL8.
+Unlike Redis, Valkey is currently only supported on EL9 and Amazon Linux 2023 hosts, installed
+exclusively via the native OS package repositories — there is no Remi option and no
+source-install fallback for EL8. Valkey's install paths also cannot be customized: the package
+is not relocatable, so customers requiring non-standard install locations must use `roles/redis`
+(source install) instead.

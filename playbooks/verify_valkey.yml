@@ -8,7 +8,7 @@
   gather_facts: true
   become: true
   tasks:
-    - name: Verify Valkey Installation  # noqa run-once
+    - name: Verify Valkey Installation
       ansible.builtin.import_role:
         name: itential.deployer.valkey
         tasks_from: verify-valkey
@@ -20,7 +20,7 @@
   gather_facts: true
   become: true
   tasks:
-    - name: Verify Sentinel Installation  # noqa run-once
+    - name: Verify Sentinel Installation
       ansible.builtin.import_role:
         name: itential.deployer.valkey
         tasks_from: verify-sentinel

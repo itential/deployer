@@ -2,7 +2,7 @@
 
 ## Overview
 
-`itential.deployer` is an Ansible collection (namespace: `itential`, version: `3.7.2`) that deploys the full Itential automation platform stack: Itential Platform (IAP), Itential Automation Gateway (IAG), MongoDB, and Redis (or Valkey as a Remi-free, EL9-only alternative). It supports online and offline (air-gapped) installations, TLS configuration, and multiple deployment topologies.
+`itential.deployer` is an Ansible collection (namespace: `itential`, version: `3.7.2`) that deploys the full Itential automation platform stack: Itential Platform (IAP), Itential Automation Gateway (IAG), MongoDB, and Redis (or Valkey as a Remi-free alternative, on EL9 or Amazon Linux 2023). It supports online and offline (air-gapped) installations, TLS configuration, and multiple deployment topologies.
 
 ## Collection Metadata
 
@@ -35,7 +35,7 @@ Also requires the `jmespath` Python module on the control node.
 | `gateway.yml` | `itential.deployer.gateway` | Install IAG on `gateway` hosts |
 | `mongodb.yml` | `itential.deployer.mongodb` | Install MongoDB on `mongodb_primary`, `mongodb_replica`, `mongodb_arbiter` hosts |
 | `redis.yml` | `itential.deployer.redis` | Install Redis on `redis_master`/`redis_replica`; Sentinel on `redis_sentinel` hosts |
-| `valkey.yml` | `itential.deployer.valkey` | Install Valkey on `valkey_master`/`valkey_replica`; Sentinel on `valkey_sentinel` hosts (EL9 only) |
+| `valkey.yml` | `itential.deployer.valkey` | Install Valkey on `valkey_master`/`valkey_replica`; Sentinel on `valkey_sentinel` hosts (EL9 or Amazon Linux 2023 only) |
 | `os.yml` | `itential.deployer.os` | Install base OS packages on all component hosts |
 | `nginx.yml` | `itential.deployer.nginx` | Install and configure nginx (wraps `nginxinc.nginx` and `nginxinc.nginx_config`) |
 | `nginx_install.yml` | `itential.deployer.nginx_install` | Install nginx only |
@@ -73,7 +73,7 @@ Also requires the `jmespath` Python module on the control node.
 | `asa` | `example_inventories/asa/` | Active/Standby: 5-node MongoDB (4 data + 1 arbiter across 3 DCs), 4-node Redis across 3 DCs. Disaster recovery topology. |
 | `platform` | `example_inventories/platform/` | Platform-only example showing external (managed) Redis/MongoDB via URL. |
 | `redis` | `example_inventories/redis/` | Redis-only examples: install from Remi repo, from system repo, or from source. |
-| `valkey` | `example_inventories/valkey/` | Valkey-only example: install via the native EL9 AppStream package (the only supported method). |
+| `valkey` | `example_inventories/valkey/` | Valkey-only example: install via the native OS package repositories on EL9 or Amazon Linux 2023 (the only supported method). |
 
 ## Roles Summary
 
@@ -86,7 +86,7 @@ Also requires the `jmespath` Python module on the control node.
 | `offline` | Shared utility role for downloading and installing RPMs/wheels/adapters in air-gapped mode. |
 | `mongodb` | Installs and configures MongoDB: users, replica set, auth, TLS, kernel tuning, SELinux, logrotate, NUMA. |
 | `redis` | Installs and configures Redis (from source or repo) and Redis Sentinel: auth, TLS, replication, SELinux. |
-| `valkey` | Installs and configures Valkey (via the native EL9 AppStream package only) and Valkey Sentinel: auth, TLS, replication. No source install, no Remi, no EL8 support, no role-level SELinux step (handled entirely by the base OS policy). |
+| `valkey` | Installs and configures Valkey (via the native OS package repositories only — EL9 AppStream or Amazon Linux 2023's core repo) and Valkey Sentinel: auth, TLS, replication. No source install, no Remi, no EL8 support, no relocatable install paths, no role-level SELinux step (handled entirely by the base OS policy). |
 | `platform` | Installs and configures Itential Platform: NodeJS, Python, RPM packages, adapters, properties file, TLS certs, Vault, SELinux. |
 | `gateway` | Installs and configures Itential Automation Gateway (IAG): Python venv, Ansible, Nornir, TLS certs, systemd service, SELinux. |
 
@@ -156,7 +156,7 @@ See `docs/offline_install_guide.md` for the full workflow.
 | `docs/itential_gateway_guide.md` | Gateway role variables, feature flags, Ansible/Nornir config |
 | `docs/mongodb_guide.md` | MongoDB role variables, replica set, TLS, user accounts |
 | `docs/redis_guide.md` | Redis role variables, Sentinel, TLS, install methods |
-| `docs/valkey_guide.md` | Valkey role variables, Sentinel, TLS, EL9-only AppStream install |
+| `docs/valkey_guide.md` | Valkey role variables, Sentinel, TLS, EL9/Amazon Linux 2023 native package install |
 | `docs/tls_guide.md` | End-to-end TLS configuration guide across all components |
 | `docs/offline_install_guide.md` | Step-by-step offline (air-gapped) install workflow |
 | `docs/patch_itential_platform_guide.md` | How to run `patch_platform.yml` to upgrade Platform |

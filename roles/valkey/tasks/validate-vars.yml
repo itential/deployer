@@ -28,7 +28,7 @@
           - valkey_log_dir == valkey_log_dir_default
         fail_msg: >-
           Default directories cannot be overridden. Valkey is only installed via the
-          native EL9 AppStream package, which expects standard paths.
+          native OS package repositories, which expect standard paths and are not relocatable.
 
     - name: Set installation variables when using Itential Platform release defaults
       when: platform_release is defined
@@ -52,12 +52,13 @@
           ansible.builtin.assert:
             that:
               - ansible_os_family == 'RedHat'
-              - ansible_distribution_major_version == '9'
+              - ansible_distribution_major_version in ['9', '2023']
             fail_msg: >-
               Deployer does not support installing Valkey on
               {{ ansible_distribution }} {{ ansible_distribution_major_version | default('') }}.
-              Valkey is only supported on RHEL/Rocky/AlmaLinux 9, installed via the native
-              AppStream module. Use the redis role instead on EL8 or other platforms.
+              Valkey is only supported on RHEL/Rocky/AlmaLinux 9 and Amazon Linux 2023, installed
+              via the native OS package repositories. Use the redis role instead on EL8 or other
+              platforms.
 
         - name: Set valkey_packages to the default value when not defined in inventory
           ansible.builtin.set_fact:

@@ -19,24 +19,30 @@ server product is on the other end.
 
 ## Supported Platforms
 
-**RHEL/Rocky/AlmaLinux 9 only.** Unlike the `redis` role, there is no supported install path
-for EL8:
+**RHEL/Rocky/AlmaLinux 9, and Amazon Linux 2023.** Unlike the `redis` role, there is no
+supported install path for EL8:
 
 - EL8's AppStream does not ship a Valkey module stream at all.
-- EPEL8 does carry a Valkey package, but this deployer standardizes on the native AppStream
-  module rather than mixing package sources, so EPEL8 is not used.
+- EPEL8 does carry a Valkey package, but this deployer standardizes on the native OS package
+  repositories rather than mixing package sources, so EPEL8 is not used.
 - Compiling Valkey from source would work on EL8, but this deployer deliberately does not
   support source installs for Valkey at all (unlike `redis_install_from_source`, there is no
   equivalent `valkey_install_from_source` flag or source-install code path in this role).
 
-A host placed in `valkey_master`, `valkey_replica`, or `valkey_sentinel` on EL8 (or any
-non-RedHat-family OS, or EL9) fails `validate-vars.yml` immediately with an explicit error
-telling the operator to use the `redis` role instead.
+A host placed in `valkey_master`, `valkey_replica`, or `valkey_sentinel` on EL8 (or any other
+unsupported OS/version) fails `validate-vars.yml` immediately with an explicit error telling
+the operator to use the `redis` role instead.
+
+Install locations are also not customizable on either supported platform: the Valkey RPM is
+not relocatable (no `Prefix:` tag), so `valkey_bin_dir`, `valkey_conf_dir`, `valkey_data_dir`,
+and `valkey_log_dir` cannot be overridden — `validate-vars.yml` enforces this. Customers who
+need a non-standard install location must use `roles/redis` (source install) instead.
 
 ## Valkey Install
 
-The `valkey` role performs a base install of Valkey from the native EL9 AppStream package
-(`dnf install valkey`) including any OS packages required. It creates the appropriate Linux
+The `valkey` role performs a base install of Valkey from the native OS package repositories
+(`dnf install valkey` — the AppStream module on EL9, Amazon Linux 2023's own core repo)
+including any OS packages required. It creates the appropriate Linux
 users, log files, and systemd services. It uses a template to generate a configuration file
 based on the variables defined in the valkey group vars. It will start the Valkey service when
 complete.
@@ -205,10 +211,10 @@ the inventory.
 
 Unlike `redis`, this role does not support installing from source or from Remi -- there is no
 `valkey_install_from_source` flag. Valkey is always installed via `dnf` using the package(s)
-in `valkey_packages`, which defaults to the native EL9 AppStream `valkey` package when
-`platform_release` is defined. The current default values can be found in
-`roles/valkey/vars/platform-release-<platform_release>.yml`, which only defines an entry for
-EL major version `9`.
+in `valkey_packages`, which defaults to the native `valkey` package when `platform_release` is
+defined. The current default values can be found in
+`roles/valkey/vars/platform-release-<platform_release>.yml`, which defines entries for EL major
+version `9` and Amazon Linux 2023 (`"2023"`).
 
 ## Building Your Inventory
 
